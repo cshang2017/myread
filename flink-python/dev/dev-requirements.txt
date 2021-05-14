@@ -1,0 +1,4 @@
+setuptools>=18.0
+wheel
+apache-beam==2.19.0
+cython==0.29.16
