@@ -1,22 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.apache.flink.runtime.scheduler;
 
 import org.apache.flink.api.common.JobStatus;
@@ -50,8 +31,6 @@ import org.apache.flink.runtime.shuffle.ShuffleMaster;
 import org.apache.flink.runtime.taskmanager.TaskExecutionState;
 import org.apache.flink.util.ExceptionUtils;
 
-import org.slf4j.Logger;
-
 import javax.annotation.Nullable;
 
 import java.util.ArrayList;
@@ -77,8 +56,6 @@ import static org.apache.flink.util.Preconditions.checkState;
  * The future default scheduler.
  */
 public class DefaultScheduler extends SchedulerBase implements SchedulerOperations {
-
-	private final Logger log;
 
 	private final ClassLoader userCodeLoader;
 
@@ -451,8 +428,6 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 
 		return (ignored, throwable) -> {
 			if (executionVertexVersioner.isModified(requiredVertexVersion)) {
-				log.debug("Refusing to deploy execution vertex {} because this deployment was " +
-					"superseded by another deployment", executionVertexId);
 				return null;
 			}
 
@@ -466,12 +441,8 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 	}
 
 	private void deployTaskSafe(final ExecutionVertexID executionVertexId) {
-		try {
 			final ExecutionVertex executionVertex = getExecutionVertex(executionVertexId);
 			executionVertexOperations.deploy(executionVertex);
-		} catch (Throwable e) {
-			handleTaskDeploymentFailure(executionVertexId, e);
-		}
 	}
 
 	private void notifyCoordinatorOfCancellation(ExecutionVertex vertex) {

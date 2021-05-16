@@ -205,7 +205,6 @@ public class BlobLibraryCacheManager implements LibraryCacheManager {
 
 		@GuardedBy("lockObject")
 		private URLClassLoader createUserCodeClassLoader(JobID jobId, Collection<PermanentBlobKey> requiredJarFiles, Collection<URL> requiredClasspaths) throws IOException {
-			try {
 				final URL[] libraryURLs = new URL[requiredJarFiles.size() + requiredClasspaths.size()];
 				int count = 0;
 				// add URLs to locally cached JAR files
@@ -221,12 +220,7 @@ public class BlobLibraryCacheManager implements LibraryCacheManager {
 				}
 
 				return classLoaderFactory.createClassLoader(libraryURLs);
-			} catch (Exception e) {
-				// rethrow or wrap
-				ExceptionUtils.tryRethrowIOException(e);
-				throw new IOException(
-					"Library cache could not register the user code libraries.", e);
-			}
+			
 		}
 
 		@GuardedBy("lockObject")
@@ -382,11 +376,8 @@ public class BlobLibraryCacheManager implements LibraryCacheManager {
 		 * and the cached libraries are deleted immediately.
 		 */
 		private void releaseClassLoader() {
-			try {
 				classLoader.close();
-			} catch (IOException e) {
-				LOG.warn("Failed to release user code class loader for " + Arrays.toString(libraries.toArray()));
-			}
+			
 		}
 	}
 }

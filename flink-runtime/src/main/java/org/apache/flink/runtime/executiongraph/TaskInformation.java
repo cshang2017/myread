@@ -4,12 +4,17 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.util.Preconditions;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
 import java.io.Serializable;
 
 /**
  * Container class for operator/task specific information which are stored at the
  * {@link ExecutionJobVertex}. This information is shared by all sub tasks of this operator.
  */
+@Getter
+@AllArgsConstructor
 public class TaskInformation implements Serializable {
 
 
@@ -28,45 +33,6 @@ public class TaskInformation implements Serializable {
 	/** Class name of the invokable to run. */
 	private final String invokableClassName;
 
-	/** Configuration for the task. */
 	private final Configuration taskConfiguration;
 
-	public TaskInformation(
-			JobVertexID jobVertexId,
-			String taskName,
-			int numberOfSubtasks,
-			int maxNumberOfSubtasks,
-			String invokableClassName,
-			Configuration taskConfiguration) {
-		this.jobVertexId = Preconditions.checkNotNull(jobVertexId);
-		this.taskName = Preconditions.checkNotNull(taskName);
-		this.numberOfSubtasks = numberOfSubtasks;
-		this.maxNumberOfSubtasks = maxNumberOfSubtasks;
-		this.invokableClassName = Preconditions.checkNotNull(invokableClassName);
-		this.taskConfiguration = Preconditions.checkNotNull(taskConfiguration);
-	}
-
-	public JobVertexID getJobVertexId() {
-		return jobVertexId;
-	}
-
-	public String getTaskName() {
-		return taskName;
-	}
-
-	public int getNumberOfSubtasks() {
-		return numberOfSubtasks;
-	}
-
-	public int getMaxNumberOfSubtasks() {
-		return maxNumberOfSubtasks;
-	}
-
-	public String getInvokableClassName() {
-		return invokableClassName;
-	}
-
-	public Configuration getTaskConfiguration() {
-		return taskConfiguration;
-	}
 }

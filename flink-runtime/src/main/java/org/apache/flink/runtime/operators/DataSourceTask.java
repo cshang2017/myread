@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.operators;
 
 import org.apache.flink.api.common.ExecutionConfig;
@@ -62,8 +44,6 @@ import java.util.NoSuchElementException;
  */
 public class DataSourceTask<OT> extends AbstractInvokable {
 
-	private static final Logger LOG = LoggerFactory.getLogger(DataSourceTask.class);
-
 	private List<RecordWriter<?>> eventualOutputs;
 
 	// Output collector
@@ -94,44 +74,27 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 	}
 
 	@Override
-	public void invoke() throws Exception {
+	public void invoke()   {
 		// --------------------------------------------------------------------
 		// Initialize
 		// --------------------------------------------------------------------
 		initInputFormat();
 
-		LOG.debug(getLogString("Start registering input and output"));
-
-		try {
 			initOutputs(getUserCodeClassLoader());
-		} catch (Exception ex) {
-			throw new RuntimeException("The initialization of the DataSource's outputs caused an error: " +
-					ex.getMessage(), ex);
-		}
 
-		LOG.debug(getLogString("Finished registering input and output"));
-
-		// --------------------------------------------------------------------
 		// Invoke
-		// --------------------------------------------------------------------
-		LOG.debug(getLogString("Starting data source operator"));
 
 		RuntimeContext ctx = createRuntimeContext();
 
 		final Counter numRecordsOut;
 		{
 			Counter tmpNumRecordsOut;
-			try {
 				OperatorIOMetricGroup ioMetricGroup = ((OperatorMetricGroup) ctx.getMetricGroup()).getIOMetricGroup();
 				ioMetricGroup.reuseInputMetricsForTask();
 				if (this.config.getNumberOfChainedStubs() == 0) {
 					ioMetricGroup.reuseOutputMetricsForTask();
 				}
 				tmpNumRecordsOut = ioMetricGroup.getNumRecordsOutCounter();
-			} catch (Exception e) {
-				LOG.warn("An exception occurred during the metrics setup.", e);
-				tmpNumRecordsOut = new SimpleCounter();
-			}
 			numRecordsOut = tmpNumRecordsOut;
 		}
 		
@@ -139,17 +102,13 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 
 		if (RichInputFormat.class.isAssignableFrom(this.format.getClass())) {
 			((RichInputFormat) this.format).setRuntimeContext(ctx);
-			LOG.debug(getLogString("Rich Source detected. Initializing runtime context."));
 			((RichInputFormat) this.format).openInputFormat();
-			LOG.debug(getLogString("Rich Source detected. Opening the InputFormat."));
 		}
 
 		ExecutionConfig executionConfig = getExecutionConfig();
 
 		boolean objectReuseEnabled = executionConfig.isObjectReuseEnabled();
 
-		LOG.debug("DataSourceTask object reuse: " + (objectReuseEnabled ? "ENABLED" : "DISABLED") + ".");
-		
 		final TypeSerializer<OT> serializer = this.serializerFactory.getSerializer();
 		
 		try {
@@ -165,15 +124,11 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 				// get start and end
 				final InputSplit split = splitIterator.next();
 
-				LOG.debug(getLogString("Opening input split " + split.toString()));
-				
 				final InputFormat<OT, InputSplit> format = this.format;
 			
 				// open input format
 				format.open(split);
 	
-				LOG.debug(getLogString("Starting to read input from split " + split.toString()));
-				
 				try {
 					final Collector<OT> output = new CountingCollector<>(this.output, numRecordsOut);
 
@@ -198,9 +153,6 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 						}
 					}
 
-					if (LOG.isDebugEnabled() && !this.taskCanceled) {
-						LOG.debug(getLogString("Closing input split " + split.toString()));
-					}
 				} finally {
 					// close. We close here such that a regular close throwing an exception marks a task as failed.
 					format.close();
@@ -213,25 +165,6 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 
 			// close the output collector
 			this.output.close();
-		}
-		catch (Exception ex) {
-			// close the input, but do not report any exceptions, since we already have another root cause
-			try {
-				this.format.close();
-			} catch (Throwable ignored) {}
-
-			BatchTask.cancelChainedTasks(this.chainedTasks);
-
-			ex = ExceptionInChainedStubException.exceptionUnwrap(ex);
-
-			if (ex instanceof CancelTaskException) {
-				// forward canceling exception
-				throw ex;
-			}
-			else if (!this.taskCanceled) {
-				// drop exception, if the task was canceled
-				BatchTask.logAndThrowException(ex, this);
-			}
 		} finally {
 			BatchTask.clearWriters(eventualOutputs);
 			// --------------------------------------------------------------------
@@ -239,22 +172,14 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 			// --------------------------------------------------------------------
 			if (this.format != null && RichInputFormat.class.isAssignableFrom(this.format.getClass())) {
 				((RichInputFormat) this.format).closeInputFormat();
-				LOG.debug(getLogString("Rich Source detected. Closing the InputFormat."));
 			}
 		}
-
-		if (!this.taskCanceled) {
-			LOG.debug(getLogString("Finished data source operator"));
-		}
-		else {
-			LOG.debug(getLogString("Data source operator cancelled"));
-		}
+	
 	}
 
 	@Override
 	public void cancel() throws Exception {
 		this.taskCanceled = true;
-		LOG.debug(getLogString("Cancelling data source operator"));
 	}
 
 	/**
@@ -282,10 +207,6 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 						InputFormat.class.getName() + "' as is required.");
 			}
 		}
-		catch (ClassCastException ccex) {
-			throw new RuntimeException("The stub class is not a proper subclass of " + InputFormat.class.getName(),
-					ccex);
-		}
 
 		Thread thread = Thread.currentThread();
 		ClassLoader original = thread.getContextClassLoader();
@@ -293,9 +214,6 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 		try {
 			thread.setContextClassLoader(userCodeClassLoader);
 			this.format.configure(formatContainer.getParameters(operatorIdAndInputFormat.getKey()));
-		}
-		catch (Throwable t) {
-			throw new RuntimeException("The user defined 'configure()' method caused an error: " + t.getMessage(), t);
 		}
 		finally {
 			thread.setContextClassLoader(original);
@@ -365,11 +283,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 				}
 
 				final InputSplit split;
-				try {
 					split = provider.getNextInputSplit(getUserCodeClassLoader());
-				} catch (InputSplitProviderException e) {
-					throw new RuntimeException("Could not retrieve next input split.", e);
-				}
 
 				if (split != null) {
 					this.nextSplit = split;

@@ -58,8 +58,6 @@ public enum ClientUtils {
 			try (BlobClient client = clientSupplier.get()) {
 				uploadAndSetUserJars(jobGraph, userJars, client);
 				uploadAndSetUserArtifacts(jobGraph, userArtifacts, client);
-			} catch (IOException ioe) {
-				throw new FlinkException("Could not upload job files.", ioe);
 			}
 		}
 		jobGraph.writeUserArtifactEntriesToConfiguration();

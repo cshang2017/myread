@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.annotation.VisibleForTesting;
@@ -124,8 +106,6 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * actions if it is not. Many actions are also idempotent (like canceling).
  */
 public class Execution implements AccessExecution, Archiveable<ArchivedExecution>, LogicalSlot.Payload {
-
-	private static final Logger LOG = ExecutionGraph.LOG;
 
 	private static final int NUM_CANCEL_CALL_TRIES = 3;
 
@@ -868,16 +848,11 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	private void scheduleConsumer(ExecutionVertex consumerVertex) {
 		assert isLegacyScheduling();
 
-		try {
 			final ExecutionGraph executionGraph = consumerVertex.getExecutionGraph();
 			consumerVertex.scheduleForExecution(
 				executionGraph.getSlotProviderStrategy(),
 				LocationPreferenceConstraint.ANY, // there must be at least one known location
 				Collections.emptySet());
-		} catch (Throwable t) {
-			consumerVertex.fail(new IllegalStateException("Could not schedule consumer " +
-				"vertex " + consumerVertex, t));
-		}
 	}
 
 	void scheduleOrUpdateConsumers(List<List<ExecutionEdge>> allConsumers) {
@@ -987,9 +962,6 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 			final TaskManagerGateway taskManagerGateway = slot.getTaskManagerGateway();
 
 			taskManagerGateway.notifyCheckpointComplete(attemptId, getVertex().getJobId(), checkpointId, timestamp);
-		} else {
-			LOG.debug("The execution has no slot assigned. This indicates that the execution is " +
-				"no longer running.");
 		}
 	}
 
@@ -1006,9 +978,6 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 			final TaskManagerGateway taskManagerGateway = slot.getTaskManagerGateway();
 
 			taskManagerGateway.notifyCheckpointAborted(attemptId, getVertex().getJobId(), abortCheckpointId, timestamp);
-		} else {
-			LOG.debug("The execution has no slot assigned. This indicates that the execution is " +
-				"no longer running.");
 		}
 	}
 
