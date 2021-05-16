@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.operators;
 
 import org.apache.flink.api.common.ExecutionConfig;
@@ -50,8 +32,6 @@ import org.apache.flink.runtime.plugable.DeserializationDelegate;
 import org.apache.flink.util.MutableObjectIterator;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * DataSinkTask which is executed by a task manager. The task hands the data to an output format.
@@ -59,11 +39,6 @@ import org.slf4j.LoggerFactory;
  * @see OutputFormat
  */
 public class DataSinkTask<IT> extends AbstractInvokable {
-
-	// Obtain DataSinkTask Logger
-	private static final Logger LOG = LoggerFactory.getLogger(DataSinkTask.class);
-
-	// --------------------------------------------------------------------------------------------
 
 	// OutputFormat instance. volatile, because the asynchronous canceller may access it
 	private volatile OutputFormat<IT> format;
@@ -98,49 +73,28 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 
 	@Override
 	public void invoke() throws Exception {
-		// --------------------------------------------------------------------
-		// Initialize
-		// --------------------------------------------------------------------
-		LOG.debug(getLogString("Start registering input and output"));
-
 		// initialize OutputFormat
 		initOutputFormat();
 
 		// initialize input readers
-		try {
 			initInputReaders();
-		} catch (Exception e) {
-			throw new RuntimeException("Initializing the input streams failed" +
-					(e.getMessage() == null ? "." : ": " + e.getMessage()), e);
-		}
 
-		LOG.debug(getLogString("Finished registering input and output"));
-
-		// --------------------------------------------------------------------
 		// Invoke
-		// --------------------------------------------------------------------
-		LOG.debug(getLogString("Starting data sink operator"));
 
 		RuntimeContext ctx = createRuntimeContext();
 
 		final Counter numRecordsIn;
 		{
 			Counter tmpNumRecordsIn;
-			try {
 				OperatorIOMetricGroup ioMetricGroup = ((OperatorMetricGroup) ctx.getMetricGroup()).getIOMetricGroup();
 				ioMetricGroup.reuseInputMetricsForTask();
 				ioMetricGroup.reuseOutputMetricsForTask();
 				tmpNumRecordsIn = ioMetricGroup.getNumRecordsInCounter();
-			} catch (Exception e) {
-				LOG.warn("An exception occurred during the metrics setup.", e);
-				tmpNumRecordsIn = new SimpleCounter();
-			}
 			numRecordsIn = tmpNumRecordsIn;
 		}
 
 		if(RichOutputFormat.class.isAssignableFrom(this.format.getClass())){
 			((RichOutputFormat) this.format).setRuntimeContext(ctx);
-			LOG.debug(getLogString("Rich Sink detected. Initializing runtime context."));
 		}
 
 		ExecutionConfig executionConfig = getExecutionConfig();
@@ -178,10 +132,6 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 					
 					this.localStrategy = sorter;
 					input1 = sorter.getIterator();
-				} catch (Exception e) {
-					throw new RuntimeException("Initializing the input processing failed" +
-							(e.getMessage() == null ? "." : ": " + e.getMessage()), e);
-				}
 				break;
 			default:
 				throw new RuntimeException("Invalid local strategy for DataSinkTask");
@@ -198,8 +148,6 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 			if (this.taskCanceled) {
 				return;
 			}
-
-			LOG.debug(getLogString("Starting to produce output"));
 
 			// open
 			format.open(this.getEnvironment().getTaskInfo().getIndexOfThisSubtask(), this.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks());
@@ -228,33 +176,6 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 				this.format = null;
 			}
 		}
-		catch (Exception ex) {
-			
-			// make a best effort to clean up
-			try {
-				if (!cleanupCalled && format instanceof CleanupWhenUnsuccessful) {
-					cleanupCalled = true;
-					((CleanupWhenUnsuccessful) format).tryCleanupOnError();
-				}
-			}
-			catch (Throwable t) {
-				LOG.error("Cleanup on error failed.", t);
-			}
-			
-			ex = ExceptionInChainedStubException.exceptionUnwrap(ex);
-
-			if (ex instanceof CancelTaskException) {
-				// forward canceling exception
-				throw ex;
-			}
-			// drop, if the task was canceled
-			else if (!this.taskCanceled) {
-				if (LOG.isErrorEnabled()) {
-					LOG.error(getLogString("Error in user code: " + ex.getMessage()), ex);
-				}
-				throw ex;
-			}
-		}
 		finally {
 			if (this.format != null) {
 				// close format, if it has not been closed, yet.
@@ -270,22 +191,12 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 			}
 			// close local strategy if necessary
 			if (localStrategy != null) {
-				try {
 					this.localStrategy.close();
-				} catch (Throwable t) {
-					LOG.error("Error closing local strategy", t);
-				}
 			}
 
 			BatchTask.clearReaders(new MutableReader<?>[]{inputReader});
 		}
 
-		if (!this.taskCanceled) {
-			LOG.debug(getLogString("Finished data sink operator"));
-		}
-		else {
-			LOG.debug(getLogString("Data sink operator cancelled"));
-		}
 	}
 
 	@Override
@@ -293,23 +204,15 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 		this.taskCanceled = true;
 		OutputFormat<IT> format = this.format;
 		if (format != null) {
-			try {
 				this.format.close();
-			} catch (Throwable t) {}
 			
 			// make a best effort to clean up
-			try {
 				if (!cleanupCalled && format instanceof CleanupWhenUnsuccessful) {
 					cleanupCalled = true;
 					((CleanupWhenUnsuccessful) format).tryCleanupOnError();
 				}
-			}
-			catch (Throwable t) {
-				LOG.error("Cleanup on error failed.", t);
-			}
 		}
 		
-		LOG.debug(getLogString("Cancelling data sink operator"));
 	}
 
 	/**

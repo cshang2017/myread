@@ -205,34 +205,22 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	}
 
 
-	/**
-	 * Checks if the mini cluster was started and is running.
-	 */
 	public boolean isRunning() {
 		return running;
 	}
 
-	/**
-	 * Starts the mini cluster, based on the configured properties.
-	 *
-	 * @throws Exception This method passes on any exception that occurs during the startup of
-	 *                   the mini cluster.
-	 */
 	public void start() {
 		synchronized (lock) {
 
-		checkState(!running, "MiniCluster is already running");
-
-		final Configuration configuration = miniClusterConfiguration.getConfiguration();
-		final boolean useSingleRpcService = miniClusterConfiguration.getRpcServiceSharing() == RpcServiceSharing.SHARED;
+		Configuration configuration = miniClusterConfiguration.getConfiguration();
+		boolean useSingleRpcService = miniClusterConfiguration.getRpcServiceSharing() == RpcServiceSharing.SHARED;
 
 		initializeIOFormatClasses(configuration);
 
 		metricRegistry = createMetricRegistry(configuration);
 
-
-		final RpcServiceFactory dispatcherResourceManagreComponentRpcServiceFactory;
-		final RpcService metricQueryServiceRpcService;
+		RpcServiceFactory dispatcherResourceManagreComponentRpcServiceFactory;
+		RpcService metricQueryServiceRpcService;
 
 		if (useSingleRpcService) {
 			// we always need the 'commonRpcService' for auxiliary calls
@@ -329,7 +317,7 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	}
 
 	@GuardedBy("lock")
-	private void setupDispatcherResourceManagerComponents(Configuration configuration, RpcServiceFactory dispatcherResourceManagreComponentRpcServiceFactory, MetricQueryServiceRetriever metricQueryServiceRetriever) throws Exception {
+	private void setupDispatcherResourceManagerComponents(Configuration configuration, RpcServiceFactory dispatcherResourceManagreComponentRpcServiceFactory, MetricQueryServiceRetriever metricQueryServiceRetriever)  {
 		dispatcherResourceManagerComponents.addAll(createDispatcherResourceManagerComponents(
 			configuration,
 			dispatcherResourceManagreComponentRpcServiceFactory,
@@ -352,8 +340,8 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 		FutureUtils.assertNoException(FutureUtils.completeAll(shutDownFutures).thenRun(this::closeAsync));
 	}
 
-	@VisibleForTesting
-	protected Collection<? extends DispatcherResourceManagerComponent> createDispatcherResourceManagerComponents(
+	protected Collection<? extends DispatcherResourceManagerComponent> 
+	createDispatcherResourceManagerComponents(
 			Configuration configuration,
 			RpcServiceFactory rpcServiceFactory,
 			HighAvailabilityServices haServices,
@@ -378,12 +366,13 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	}
 
 	@Nonnull
-	DispatcherResourceManagerComponentFactory createDispatcherResourceManagerComponentFactory() {
+	DispatcherResourceManagerComponentFactory 
+	createDispatcherResourceManagerComponentFactory() {
 		return DefaultDispatcherResourceManagerComponentFactory.createSessionComponentFactory(StandaloneResourceManagerFactory.getInstance());
 	}
 
-	@VisibleForTesting
-	protected HighAvailabilityServices createHighAvailabilityServices(Configuration configuration, Executor executor) throws Exception {
+	protected HighAvailabilityServices 
+	createHighAvailabilityServices(Configuration configuration, Executor executor) {
 		LOG.info("Starting high-availability services");
 		return HighAvailabilityServicesUtils.createAvailableOrEmbeddedServices(
 			configuration,
@@ -467,7 +456,7 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	}
 
 	@GuardedBy("lock")
-	private void startTaskManagers() throws Exception {
+	private void startTaskManagers() {
 		final int numTaskManagers = miniClusterConfiguration.getNumTaskManagers();
 
 		LOG.info("Starting {} TaskManger(s)", numTaskManagers);
@@ -478,7 +467,7 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	}
 
 	@VisibleForTesting
-	void startTaskExecutor() throws Exception {
+	void startTaskExecutor() {
 		synchronized (lock) {
 			final Configuration configuration = miniClusterConfiguration.getConfiguration();
 
@@ -499,7 +488,6 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 		}
 	}
 
-	@VisibleForTesting
 	protected boolean useLocalCommunication() {
 		return miniClusterConfiguration.getNumTaskManagers() == 1;
 	}
@@ -588,16 +576,11 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	 * @throws JobExecutionException Thrown if anything went amiss during initial job launch,
 	 *         or if the job terminally failed.
 	 */
-	public void runDetached(JobGraph job) throws JobExecutionException, InterruptedException {
-		checkNotNull(job, "job is null");
+	public void runDetached(JobGraph job)  {
 
 		final CompletableFuture<JobSubmissionResult> submissionFuture = submitJob(job);
 
-		try {
-			submissionFuture.get();
-		} catch (ExecutionException e) {
-			throw new JobExecutionException(job.getJobID(), ExceptionUtils.stripExecutionException(e));
-		}
+		submissionFuture.get();
 	}
 
 	/**
@@ -612,33 +595,22 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	 */
 	@Override
 	public JobExecutionResult executeJobBlocking(JobGraph job) throws JobExecutionException, InterruptedException {
-		checkNotNull(job, "job is null");
 
-		final CompletableFuture<JobSubmissionResult> submissionFuture = submitJob(job);
+		CompletableFuture<JobSubmissionResult> submissionFuture = submitJob(job);
 
-		final CompletableFuture<JobResult> jobResultFuture = submissionFuture.thenCompose(
+		CompletableFuture<JobResult> jobResultFuture = submissionFuture.thenCompose(
 			(JobSubmissionResult ignored) -> requestJobResult(job.getJobID()));
 
-		final JobResult jobResult;
+		final JobResult jobResult = jobResultFuture.get();
 
-		try {
-			jobResult = jobResultFuture.get();
-		} catch (ExecutionException e) {
-			throw new JobExecutionException(job.getJobID(), "Could not retrieve JobResult.", ExceptionUtils.stripExecutionException(e));
-		}
-
-		try {
-			return jobResult.toJobExecutionResult(Thread.currentThread().getContextClassLoader());
-		} catch (IOException | ClassNotFoundException e) {
-			throw new JobExecutionException(job.getJobID(), e);
-		}
+		return jobResult.toJobExecutionResult(Thread.currentThread().getContextClassLoader());
 	}
 
 	public CompletableFuture<JobSubmissionResult> submitJob(JobGraph jobGraph) {
-		final CompletableFuture<DispatcherGateway> dispatcherGatewayFuture = getDispatcherGatewayFuture();
-		final CompletableFuture<InetSocketAddress> blobServerAddressFuture = createBlobServerAddress(dispatcherGatewayFuture);
-		final CompletableFuture<Void> jarUploadFuture = uploadAndSetJobFiles(blobServerAddressFuture, jobGraph);
-		final CompletableFuture<Acknowledge> acknowledgeCompletableFuture = jarUploadFuture
+		CompletableFuture<DispatcherGateway> dispatcherGatewayFuture = getDispatcherGatewayFuture();
+		CompletableFuture<InetSocketAddress> blobServerAddressFuture = createBlobServerAddress(dispatcherGatewayFuture);
+		CompletableFuture<Void> jarUploadFuture = uploadAndSetJobFiles(blobServerAddressFuture, jobGraph);
+		CompletableFuture<Acknowledge> acknowledgeCompletableFuture = jarUploadFuture
 			.thenCombine(
 				dispatcherGatewayFuture,
 				(Void ack, DispatcherGateway dispatcherGateway) -> dispatcherGateway.submitJob(jobGraph, rpcTimeout))
@@ -658,18 +630,13 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	@VisibleForTesting
 	protected CompletableFuture<DispatcherGateway> getDispatcherGatewayFuture() {
 		synchronized (lock) {
-			checkState(running, "MiniCluster is not yet running or has already been shut down.");
 			return dispatcherGatewayRetriever.getFuture();
 		}
 	}
 
 	private CompletableFuture<Void> uploadAndSetJobFiles(final CompletableFuture<InetSocketAddress> blobServerAddressFuture, final JobGraph job) {
 		return blobServerAddressFuture.thenAccept(blobServerAddress -> {
-			try {
 				ClientUtils.extractAndUploadJobGraphFiles(job, () -> new BlobClient(blobServerAddress, miniClusterConfiguration.getConfiguration()));
-			} catch (FlinkException e) {
-				throw new CompletionException(e);
-			}
 		});
 	}
 
@@ -747,10 +714,6 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 			.createAndStart();
 	}
 
-	// ------------------------------------------------------------------------
-	//  Internal methods
-	// ------------------------------------------------------------------------
-
 	@GuardedBy("lock")
 	private CompletableFuture<Void> shutDownResourceManagerComponents() {
 
@@ -769,29 +732,17 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 
 				synchronized (lock) {
 					if (resourceManagerLeaderRetriever != null) {
-						try {
-							resourceManagerLeaderRetriever.stop();
-						} catch (Exception e) {
-							exception = ExceptionUtils.firstOrSuppressed(e, exception);
-						}
-
+						resourceManagerLeaderRetriever.stop();
 						resourceManagerLeaderRetriever = null;
 					}
 
 					if (dispatcherLeaderRetriever != null) {
-						try {
-							dispatcherLeaderRetriever.stop();
-						} catch (Exception e) {
-							exception = ExceptionUtils.firstOrSuppressed(e, exception);
-						}
-
+						dispatcherLeaderRetriever.stop();
 						dispatcherLeaderRetriever = null;
 					}
 
 					if (clusterRestEndpointLeaderRetrievalService != null) {
 						clusterRestEndpointLeaderRetrievalService.stop();
-						
-
 						clusterRestEndpointLeaderRetrievalService = null;
 					}
 				}
@@ -799,42 +750,22 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	}
 
 	private void terminateMiniClusterServices() throws Exception {
-		// collect the first exception, but continue and add all successive
-		// exceptions as suppressed
-		Exception exception = null;
-
 		synchronized (lock) {
 			if (blobCacheService != null) {
-				try {
-					blobCacheService.close();
-				} catch (Exception e) {
-					exception = ExceptionUtils.firstOrSuppressed(e, exception);
-				}
+				blobCacheService.close();
 				blobCacheService = null;
 			}
 
 			// shut down the blob server
 			if (blobServer != null) {
-				try {
-					blobServer.close();
-				} catch (Exception e) {
-					exception = ExceptionUtils.firstOrSuppressed(e, exception);
-				}
+				blobServer.close();
 				blobServer = null;
 			}
 
 			// shut down high-availability services
 			if (haServices != null) {
-				try {
-					haServices.closeAndCleanupAllData();
-				} catch (Exception e) {
-					exception = ExceptionUtils.firstOrSuppressed(e, exception);
-				}
+				haServices.closeAndCleanupAllData();
 				haServices = null;
-			}
-
-			if (exception != null) {
-				throw exception;
 			}
 		}
 	}
@@ -862,7 +793,8 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	private CompletableFuture<Void> terminateExecutors(long executorShutdownTimeoutMillis) {
 		synchronized (lock) {
 			if (ioExecutor != null) {
-				return ExecutorUtils.nonBlockingShutdown(executorShutdownTimeoutMillis, TimeUnit.MILLISECONDS, ioExecutor);
+				return ExecutorUtils.nonBlockingShutdown(executorShutdownTimeoutMillis, 
+														TimeUnit.MILLISECONDS, ioExecutor);
 			} else {
 				return CompletableFuture.completedFuture(null);
 			}
@@ -927,12 +859,7 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 		}
 	}
 
-	// ------------------------------------------------------------------------
-	//  miscellaneous utilities
-	// ------------------------------------------------------------------------
-
 	private void initializeIOFormatClasses(Configuration configuration) {
-		// TODO: That we still have to call something like this is a crime against humanity
 		FileOutputFormat.initDefaultsFromConfiguration(configuration);
 	}
 
@@ -948,7 +875,6 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 		public void onFatalError(Throwable exception) {
 			// first check if we are still running
 			if (running) {
-				LOG.error("TaskManager #{} failed.", index, exception);
 
 				synchronized (lock) {
 					taskManagers.get(index).closeAsync();
@@ -958,10 +884,8 @@ public class MiniCluster implements JobExecutorService, AutoCloseableAsync {
 	}
 
 	private class ShutDownFatalErrorHandler implements FatalErrorHandler {
-
 		@Override
 		public void onFatalError(Throwable exception) {
-			LOG.warn("Error in MiniCluster. Shutting the MiniCluster down.", exception);
 			closeAsync();
 		}
 	}

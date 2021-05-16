@@ -14,23 +14,14 @@ import javax.annotation.Nullable;
 
 import static org.apache.flink.runtime.minicluster.RpcServiceSharing.SHARED;
 
-/**
- * Configuration object for the {@link MiniCluster}.
- */
 public class MiniClusterConfiguration {
 
 	private final UnmodifiableConfiguration configuration;
-
 	private final int numTaskManagers;
-
 	private final RpcServiceSharing rpcServiceSharing;
 
 	@Nullable
 	private final String commonBindAddress;
-
-	// ------------------------------------------------------------------------
-	//  Construction
-	// ------------------------------------------------------------------------
 
 	public MiniClusterConfiguration(
 			Configuration configuration,
@@ -51,10 +42,6 @@ public class MiniClusterConfiguration {
 
 		return new UnmodifiableConfiguration(modifiedConfig);
 	}
-
-	// ------------------------------------------------------------------------
-	//  getters
-	// ------------------------------------------------------------------------
 
 	public RpcServiceSharing getRpcServiceSharing() {
 		return rpcServiceSharing;
@@ -103,24 +90,6 @@ public class MiniClusterConfiguration {
 	public UnmodifiableConfiguration getConfiguration() {
 		return configuration;
 	}
-
-	@Override
-	public String toString() {
-		return "MiniClusterConfiguration {" +
-				"singleRpcService=" + rpcServiceSharing +
-				", numTaskManagers=" + numTaskManagers +
-				", commonBindAddress='" + commonBindAddress + '\'' +
-				", config=" + configuration +
-				'}';
-	}
-
-	// ----------------------------------------------------------------------------------
-	// Enums
-	// ----------------------------------------------------------------------------------
-
-	// ----------------------------------------------------------------------------------
-	// Builder
-	// ----------------------------------------------------------------------------------
 
 	/**
 	 * Builder for the MiniClusterConfiguration.

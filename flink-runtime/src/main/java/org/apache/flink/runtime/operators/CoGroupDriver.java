@@ -1,22 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-
 package org.apache.flink.runtime.operators;
 
 import org.apache.flink.api.common.ExecutionConfig;
@@ -24,8 +5,6 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.runtime.operators.sort.NonReusingSortMergeCoGroupIterator;
 import org.apache.flink.runtime.operators.util.metrics.CountingCollector;
 import org.apache.flink.runtime.operators.util.metrics.CountingMutableObjectIterator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.flink.api.common.functions.CoGroupFunction;
 import org.apache.flink.api.common.typeutils.TypeComparator;
 import org.apache.flink.api.common.typeutils.TypePairComparatorFactory;
@@ -48,8 +27,6 @@ import org.apache.flink.util.MutableObjectIterator;
  */
 public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, IT2, OT>, OT> {
 	
-	private static final Logger LOG = LoggerFactory.getLogger(CoGroupDriver.class);
-	
 	
 	private TaskContext<CoGroupFunction<IT1, IT2, OT>, OT> taskContext;
 	
@@ -58,9 +35,6 @@ public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, 
 	private volatile boolean running;
 
 	private boolean objectReuseEnabled = false;
-
-	// ------------------------------------------------------------------------
-
 
 	@Override
 	public void setup(TaskContext<CoGroupFunction<IT1, IT2, OT>, OT> context) {
@@ -77,8 +51,9 @@ public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, 
 
 	@Override
 	public Class<CoGroupFunction<IT1, IT2, OT>> getStubType() {
-		@SuppressWarnings("unchecked")
-		final Class<CoGroupFunction<IT1, IT2, OT>> clazz = (Class<CoGroupFunction<IT1, IT2, OT>>) (Class<?>) CoGroupFunction.class;
+		final Class<CoGroupFunction<IT1, IT2, OT>> clazz 
+	    	= (Class<CoGroupFunction<IT1, IT2, OT>>) (Class<?>) CoGroupFunction.class;
+
 		return clazz;
 	}
 	
@@ -92,34 +67,24 @@ public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, 
 	@Override
 	public void prepare() throws Exception
 	{
-		final TaskConfig config = this.taskContext.getTaskConfig();
-		if (config.getDriverStrategy() != DriverStrategy.CO_GROUP) {
-			throw new Exception("Unrecognized driver strategy for CoGoup driver: " + config.getDriverStrategy().name());
-		}
+		TaskConfig config = taskContext.getTaskConfig();
 
-		final Counter numRecordsIn = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsInCounter();
+		Counter numRecordsIn = taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsInCounter();
 		
-		final MutableObjectIterator<IT1> in1 = new CountingMutableObjectIterator<>(this.taskContext.<IT1>getInput(0), numRecordsIn);
-		final MutableObjectIterator<IT2> in2 = new CountingMutableObjectIterator<>(this.taskContext.<IT2>getInput(1), numRecordsIn);
+		MutableObjectIterator<IT1> in1 = new CountingMutableObjectIterator<>(taskContext.<IT1>getInput(0), numRecordsIn);
+		MutableObjectIterator<IT2> in2 = new CountingMutableObjectIterator<>(taskContext.<IT2>getInput(1), numRecordsIn);
 		
 		// get the key positions and types
-		final TypeSerializer<IT1> serializer1 = this.taskContext.<IT1>getInputSerializer(0).getSerializer();
-		final TypeSerializer<IT2> serializer2 = this.taskContext.<IT2>getInputSerializer(1).getSerializer();
-		final TypeComparator<IT1> groupComparator1 = this.taskContext.getDriverComparator(0);
-		final TypeComparator<IT2> groupComparator2 = this.taskContext.getDriverComparator(1);
+		TypeSerializer<IT1> serializer1 = taskContext.<IT1>getInputSerializer(0).getSerializer();
+		TypeSerializer<IT2> serializer2 = taskContext.<IT2>getInputSerializer(1).getSerializer();
+		TypeComparator<IT1> groupComparator1 = taskContext.getDriverComparator(0);
+		TypeComparator<IT2> groupComparator2 = taskContext.getDriverComparator(1);
 		
-		final TypePairComparatorFactory<IT1, IT2> pairComparatorFactory = config.getPairComparatorFactory(
-					this.taskContext.getUserCodeClassLoader());
-		if (pairComparatorFactory == null) {
-			throw new Exception("Missing pair comparator factory for CoGroup driver");
-		}
+		TypePairComparatorFactory<IT1, IT2> pairComparatorFactory = config.getPairComparatorFactory(
+					taskContext.getUserCodeClassLoader());
 
 		ExecutionConfig executionConfig = taskContext.getExecutionConfig();
 		this.objectReuseEnabled = executionConfig.isObjectReuseEnabled();
-
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("CoGroupDriver object reuse: " + (this.objectReuseEnabled ? "ENABLED" : "DISABLED") + ".");
-		}
 
 		if (objectReuseEnabled) {
 			// create CoGroupTaskIterator according to provided local strategy.
@@ -139,21 +104,17 @@ public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, 
 		
 		// open CoGroupTaskIterator - this triggers the sorting and blocks until the iterator is ready
 		this.coGroupIterator.open();
-		
-		if (LOG.isDebugEnabled()) {
-			LOG.debug(this.taskContext.formatLogString("CoGroup task iterator ready."));
-		}
 	}
 	
 
 	@Override
-	public void run() throws Exception
+	public void run() 
 	{
-		final Counter numRecordsOut = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter();
+		Counter numRecordsOut = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter();
 
-		final CoGroupFunction<IT1, IT2, OT> coGroupStub = this.taskContext.getStub();
-		final Collector<OT> collector = new CountingCollector<>(this.taskContext.getOutputCollector(), numRecordsOut);
-		final CoGroupTaskIterator<IT1, IT2> coGroupIterator = this.coGroupIterator;
+		CoGroupFunction<IT1, IT2, OT> coGroupStub = this.taskContext.getStub();
+		Collector<OT> collector = new CountingCollector<>(this.taskContext.getOutputCollector(), numRecordsOut);
+		CoGroupTaskIterator<IT1, IT2> coGroupIterator = this.coGroupIterator;
 		
 		while (this.running && coGroupIterator.next()) {
 			coGroupStub.coGroup(coGroupIterator.getValues1(), coGroupIterator.getValues2(), collector);
@@ -162,7 +123,7 @@ public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, 
 
 
 	@Override
-	public void cleanup() throws Exception {
+	public void cleanup()  {
 		if (this.coGroupIterator != null) {
 			this.coGroupIterator.close();
 			this.coGroupIterator = null;
@@ -171,7 +132,7 @@ public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, 
 
 
 	@Override
-	public void cancel() throws Exception {
+	public void cancel() {
 		this.running = false;
 		cleanup();
 	}

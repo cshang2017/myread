@@ -14,7 +14,6 @@ public interface JobExecutor {
 	 *
 	 * @param jobGraph to execute
 	 * @return Execution result of the executed job
-	 * @throws JobExecutionException if the job failed to execute
 	 */
-	JobExecutionResult executeJobBlocking(final JobGraph jobGraph) throws JobExecutionException, InterruptedException;
+	JobExecutionResult executeJobBlocking(final JobGraph jobGraph) ;
 }
