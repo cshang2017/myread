@@ -1,21 +1,3 @@
-/*
- Licensed to the Apache Software Foundation (ASF) under one
- or more contributor license agreements.  See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership.  The ASF licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
- */
-
 package org.apache.flink.runtime.source.coordinator;
 
 import org.apache.flink.annotation.VisibleForTesting;
@@ -37,7 +19,6 @@ import java.util.function.BiConsumer;
  * The provider of {@link SourceCoordinator}.
  */
 public class SourceCoordinatorProvider<SplitT extends SourceSplit> extends RecreateOnResetOperatorCoordinator.Provider {
-	private static final long serialVersionUID = -1921681440009738462L;
 	private final String operatorName;
 	private final Source<?, SplitT, ?> source;
 	private final int numWorkerThreads;
@@ -107,12 +88,6 @@ public class SourceCoordinatorProvider<SplitT extends SourceSplit> extends Recre
 
 		@Override
 		public synchronized Thread newThread(Runnable r) {
-			if (t != null) {
-				throw new Error(
-					"This indicates that a fatal error has happened and caused the "
-						+ "coordinator executor thread to exit. Check the earlier logs"
-						+ "to see the root cause of the problem.");
-			}
 			t = new Thread(r, coordinatorThreadName);
 			t.setContextClassLoader(cl);
 			t.setUncaughtExceptionHandler(errorHandler);

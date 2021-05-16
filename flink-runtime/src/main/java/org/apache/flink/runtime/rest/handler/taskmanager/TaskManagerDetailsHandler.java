@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 package org.apache.flink.runtime.rest.handler.taskmanager;
 
@@ -89,10 +72,8 @@ public class TaskManagerDetailsHandler extends AbstractResourceManagerHandler<Re
 				final TaskManagerMetricsInfo taskManagerMetricsInfo;
 
 				if (tmMetrics != null) {
-					log.debug("Create metrics info for TaskManager {}.", taskManagerResourceId);
 					taskManagerMetricsInfo = createTaskManagerMetricsInfo(tmMetrics);
 				} else {
-					log.debug("No metrics for TaskManager {}.", taskManagerResourceId);
 					taskManagerMetricsInfo = TaskManagerMetricsInfo.empty();
 				}
 
@@ -100,26 +81,10 @@ public class TaskManagerDetailsHandler extends AbstractResourceManagerHandler<Re
 					taskManagerInfo,
 					taskManagerMetricsInfo);
 			})
-			.exceptionally(
-				(Throwable throwable) -> {
-					final Throwable strippedThrowable = ExceptionUtils.stripExecutionException(throwable);
-
-					if (strippedThrowable instanceof UnknownTaskExecutorException) {
-						throw new CompletionException(
-							new RestHandlerException(
-								"Could not find TaskExecutor " + taskManagerResourceId + '.',
-								HttpResponseStatus.NOT_FOUND,
-								strippedThrowable));
-					} else {
-						throw new CompletionException(strippedThrowable);
-					}
-				}
-			);
+			;
 	}
 
 	private static TaskManagerMetricsInfo createTaskManagerMetricsInfo(MetricStore.TaskManagerMetricStore tmMetrics) {
-
-		Preconditions.checkNotNull(tmMetrics);
 
 		long heapUsed = Long.valueOf(tmMetrics.getMetric("Status.JVM.Memory.Heap.Used", "0"));
 		long heapCommitted = Long.valueOf(tmMetrics.getMetric("Status.JVM.Memory.Heap.Committed", "0"));

@@ -1,21 +1,3 @@
-/*
- Licensed to the Apache Software Foundation (ASF) under one
- or more contributor license agreements.  See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership.  The ASF licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
- */
-
 package org.apache.flink.runtime.source.coordinator;
 
 import org.apache.flink.annotation.Internal;
@@ -38,8 +20,6 @@ import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.ThrowableCatchingRunnable;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -87,8 +67,6 @@ import static org.apache.flink.runtime.source.coordinator.SourceCoordinatorSerde
 @Internal
 public class SourceCoordinatorContext<SplitT extends SourceSplit>
 		implements SplitEnumeratorContext<SplitT>, AutoCloseable {
-
-	private static final Logger LOG = LoggerFactory.getLogger(SourceCoordinatorContext.class);
 
 	private final ExecutorService coordinatorExecutor;
 	private final ExecutorNotifier notifier;
@@ -141,13 +119,8 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
 	@Override
 	public void sendEventToSourceReader(int subtaskId, SourceEvent event) {
 		callInCoordinatorThread(() -> {
-			try {
 				operatorCoordinatorContext.sendEvent(new SourceEventWrapper(event), subtaskId);
 				return null;
-			} catch (TaskNotRunningException e) {
-				throw new FlinkRuntimeException(
-						String.format("Failed to send event %s to subtask %d", event, subtaskId), e);
-			}
 		}, String.format("Failed to send event %s to subtask %d", event, subtaskId));
 	}
 
@@ -177,14 +150,7 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
 			assignmentTracker.recordSplitAssignment(assignment);
 			assignment.assignment().forEach(
 					(id, splits) -> {
-						try {
 							operatorCoordinatorContext.sendEvent(new AddSplitEvent<>(splits, splitSerializer), id);
-						} catch (TaskNotRunningException e) {
-							throw new FlinkRuntimeException(String.format(
-									"Failed to assign splits %s to reader %d.", splits, id), e);
-						} catch (IOException e) {
-							throw new FlinkRuntimeException("Failed to serialize splits.", e);
-						}
 					});
 			return null;
 		}, String.format("Failed to assign splits %s due to ", assignment));
@@ -194,12 +160,8 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
 	public void signalNoMoreSplits(int subtask) {
 		// Ensure the split assignment is done by the the coordinator executor.
 		callInCoordinatorThread(() -> {
-			try {
 				operatorCoordinatorContext.sendEvent(new NoMoreSplitsEvent(), subtask);
 				return null; // void return value
-			} catch (TaskNotRunningException e) {
-				throw new FlinkRuntimeException("Failed to send 'NoMoreSplits' to reader " + subtask, e);
-			}
 		}, "Failed to send 'NoMoreSplits' to reader " + subtask);
 	}
 
@@ -242,8 +204,6 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
 
 	void handleUncaughtExceptionFromAsyncCall(Throwable t) {
 		ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
-		LOG.error("Exception while handling result from async call in {}. Triggering job failover.",
-				coordinatorThreadName, t);
 		failJob(t);
 	}
 
@@ -330,17 +290,9 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
 	private <V> V callInCoordinatorThread(Callable<V> callable, String errorMessage) {
 		// Ensure the split assignment is done by the the coordinator executor.
 		if (!coordinatorThreadFactory.isCurrentThreadCoordinatorThread()) {
-			try {
 				return coordinatorExecutor.submit(callable).get();
-			} catch (InterruptedException | ExecutionException e) {
-				throw new FlinkRuntimeException(errorMessage, e);
-			}
 		}
 
-		try {
 			return callable.call();
-		} catch (Exception e) {
-			throw new FlinkRuntimeException(errorMessage, e);
-		}
 	}
 }

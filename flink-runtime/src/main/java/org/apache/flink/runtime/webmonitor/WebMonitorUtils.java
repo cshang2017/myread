@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.webmonitor;
 
 import org.apache.flink.api.common.JobStatus;
@@ -36,9 +18,6 @@ import org.apache.flink.util.FlinkException;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.JsonNode;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.node.ArrayNode;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
@@ -63,8 +42,6 @@ public final class WebMonitorUtils {
 
 	private static final String WEB_FRONTEND_BOOTSTRAP_CLASS_FQN = "org.apache.flink.runtime.webmonitor.utils.WebFrontendBootstrap";
 
-	private static final Logger LOG = LoggerFactory.getLogger(WebMonitorUtils.class);
-
 	/**
 	 * Singleton to hold the log file, the stdout file, the log directory.
 	 */
@@ -88,15 +65,11 @@ public final class WebMonitorUtils {
 			String logFilePath = System.getProperty(logEnv);
 
 			if (logFilePath == null) {
-				LOG.warn("Log file environment variable '{}' is not set.", logEnv);
 				logFilePath = config.getString(WebOptions.LOG_PATH);
 			}
 
 			// not configured, cannot serve log files
 			if (logFilePath == null || logFilePath.length() < 4) {
-				LOG.warn("JobManager log files are unavailable in the web dashboard. " +
-					"Log file location not found in environment variable '{}' or configuration key '{}'.",
-					logEnv, WebOptions.LOG_PATH.key());
 				return new LogFileLocation(null, null, null);
 			}
 
@@ -106,9 +79,6 @@ public final class WebMonitorUtils {
 			if (logFile != null) {
 				logDir = resolveFileLocation(logFile.getParent());
 			}
-
-			LOG.info("Determined location of main cluster component log file: {}", logFilePath);
-			LOG.info("Determined location of main cluster component stdout file: {}", outFilePath);
 
 			return new LogFileLocation(logFile, resolveFileLocation(outFilePath), logDir);
 		}
@@ -204,7 +174,6 @@ public final class WebMonitorUtils {
 	}
 
 	public static Map<String, String> fromKeyValueJsonArray(String jsonString) {
-		try {
 			Map<String, String> map = new HashMap<>();
 			ObjectMapper m = new ObjectMapper();
 			ArrayNode array = (ArrayNode) m.readTree(jsonString);
@@ -218,10 +187,6 @@ public final class WebMonitorUtils {
 			}
 
 			return map;
-		}
-		catch (Exception e) {
-			throw new RuntimeException(e.getMessage(), e);
-		}
 	}
 
 	public static JobDetails createDetailsForJob(AccessExecutionGraph job) {
@@ -298,12 +263,7 @@ public final class WebMonitorUtils {
 	 * classpath.
 	 */
 	private static boolean isFlinkRuntimeWebInClassPath() {
-		try {
 			Class.forName(WEB_FRONTEND_BOOTSTRAP_CLASS_FQN);
 			return true;
-		} catch (ClassNotFoundException e) {
-			// class not found means that there is no flink-runtime-web in the classpath
-			return false;
-		}
 	}
 }

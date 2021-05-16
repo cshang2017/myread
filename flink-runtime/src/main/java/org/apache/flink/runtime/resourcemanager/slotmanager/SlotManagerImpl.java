@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.resourcemanager.slotmanager;
 
 import org.apache.flink.annotation.VisibleForTesting;
@@ -72,7 +54,6 @@ import java.util.concurrent.TimeoutException;
  * Implementation of {@link SlotManager}.
  */
 public class SlotManagerImpl implements SlotManager {
-	private static final Logger LOG = LoggerFactory.getLogger(SlotManagerImpl.class);
 
 	/** Scheduled executor for timeouts. */
 	private final ScheduledExecutor scheduledExecutor;
@@ -276,7 +257,6 @@ public class SlotManagerImpl implements SlotManager {
 	 */
 	@Override
 	public void start(ResourceManagerId newResourceManagerId, Executor newMainThreadExecutor, ResourceActions newResourceActions) {
-		LOG.info("Starting the SlotManager.");
 
 		this.resourceManagerId = Preconditions.checkNotNull(newResourceManagerId);
 		mainThreadExecutor = Preconditions.checkNotNull(newMainThreadExecutor);
@@ -315,7 +295,6 @@ public class SlotManagerImpl implements SlotManager {
 	 */
 	@Override
 	public void suspend() {
-		LOG.info("Suspending the SlotManager.");
 
 		// stop the timeout checks for the TaskManagers and the SlotRequests
 		if (taskManagerTimeoutCheck != null) {
@@ -352,7 +331,6 @@ public class SlotManagerImpl implements SlotManager {
 	 */
 	@Override
 	public void close() throws Exception {
-		LOG.info("Closing the SlotManager.");
 
 		suspend();
 		slotManagerMetricGroup.close();
@@ -433,8 +411,6 @@ public class SlotManagerImpl implements SlotManager {
 	public boolean registerTaskManager(final TaskExecutorConnection taskExecutorConnection, SlotReport initialSlotReport) {
 		checkInit();
 
-		LOG.debug("Registering TaskManager {} under {} at the SlotManager.", taskExecutorConnection.getResourceID(), taskExecutorConnection.getInstanceID());
-
 		// we identify task managers by their instance id
 		if (taskManagerRegistrations.containsKey(taskExecutorConnection.getInstanceID())) {
 			reportSlotStatus(taskExecutorConnection.getInstanceID(), initialSlotReport);
@@ -478,8 +454,6 @@ public class SlotManagerImpl implements SlotManager {
 	public boolean unregisterTaskManager(InstanceID instanceId, Exception cause) {
 		checkInit();
 
-		LOG.debug("Unregister TaskManager {} from the SlotManager.", instanceId);
-
 		TaskManagerRegistration taskManagerRegistration = taskManagerRegistrations.remove(instanceId);
 
 		if (null != taskManagerRegistration) {
@@ -487,7 +461,6 @@ public class SlotManagerImpl implements SlotManager {
 
 			return true;
 		} else {
-			LOG.debug("There is no task manager registered with instance ID {}. Ignoring this message.", instanceId);
 
 			return false;
 		}
@@ -507,7 +480,6 @@ public class SlotManagerImpl implements SlotManager {
 		TaskManagerRegistration taskManagerRegistration = taskManagerRegistrations.get(instanceId);
 
 		if (null != taskManagerRegistration) {
-			LOG.debug("Received slot report from instance {}: {}.", instanceId, slotReport);
 
 			for (SlotStatus slotStatus : slotReport) {
 				updateSlot(slotStatus.getSlotID(), slotStatus.getAllocationID(), slotStatus.getJobID());
@@ -515,7 +487,6 @@ public class SlotManagerImpl implements SlotManager {
 
 			return true;
 		} else {
-			LOG.debug("Received slot report for unknown task manager with instance id {}. Ignoring this report.", instanceId);
 
 			return false;
 		}
@@ -546,16 +517,9 @@ public class SlotManagerImpl implements SlotManager {
 					}
 
 					updateSlotState(slot, taskManagerRegistration, null, null);
-				} else {
-					LOG.debug("Received request to free slot {} with expected allocation id {}, " +
-						"but actual allocation id {} differs. Ignoring the request.", slotId, allocationId, slot.getAllocationId());
-				}
-			} else {
-				LOG.debug("Slot {} has not been allocated.", allocationId);
-			}
-		} else {
-			LOG.debug("Trying to free a slot {} which has not been registered. Ignoring this message.", slotId);
-		}
+				} 
+			} 
+		} 
 	}
 
 	@Override

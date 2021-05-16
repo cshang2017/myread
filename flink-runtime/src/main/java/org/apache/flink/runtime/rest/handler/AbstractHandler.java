@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.rest.handler;
 
 import org.apache.flink.api.common.time.Time;
@@ -70,8 +52,6 @@ import java.util.function.Function;
  */
 public abstract class AbstractHandler<T extends RestfulGateway, R extends RequestBody, M extends MessageParameters> extends LeaderRetrievalHandler<T> implements AutoCloseableAsync {
 
-	protected final Logger log = LoggerFactory.getLogger(getClass());
-
 	protected static final ObjectMapper MAPPER = RestMapperUtils.getStrictObjectMapper();
 
 	/**
@@ -111,95 +91,53 @@ public abstract class AbstractHandler<T extends RestfulGateway, R extends Reques
 	@Override
 	protected void respondAsLeader(ChannelHandlerContext ctx, RoutedRequest routedRequest, T gateway) {
 		HttpRequest httpRequest = routedRequest.getRequest();
-		if (log.isTraceEnabled()) {
-			log.trace("Received request " + httpRequest.uri() + '.');
-		}
 
 		FileUploads uploadedFiles = null;
-		try {
-			if (!inFlightRequestTracker.registerRequest()) {
-				log.debug("The handler instance for {} had already been closed.", untypedResponseMessageHeaders.getTargetRestEndpointURL());
-				ctx.channel().close();
-				return;
-			}
-
-			if (!(httpRequest instanceof FullHttpRequest)) {
-				// The RestServerEndpoint defines a HttpObjectAggregator in the pipeline that always returns
-				// FullHttpRequests.
-				log.error("Implementation error: Received a request that wasn't a FullHttpRequest.");
-				throw new RestHandlerException("Bad request received.", HttpResponseStatus.BAD_REQUEST);
-			}
-
-			final ByteBuf msgContent = ((FullHttpRequest) httpRequest).content();
-
-			uploadedFiles = FileUploadHandler.getMultipartFileUploads(ctx);
-
-			if (!untypedResponseMessageHeaders.acceptsFileUploads() && !uploadedFiles.getUploadedFiles().isEmpty()) {
-				throw new RestHandlerException("File uploads not allowed.", HttpResponseStatus.BAD_REQUEST);
-			}
-
-			R request;
-			if (msgContent.capacity() == 0) {
-				try {
-					request = MAPPER.readValue("{}", untypedResponseMessageHeaders.getRequestClass());
-				} catch (JsonParseException | JsonMappingException je) {
-					throw new RestHandlerException("Bad request received. Request did not conform to expected format.", HttpResponseStatus.BAD_REQUEST, je);
-				}
-			} else {
-				try {
-					InputStream in = new ByteBufInputStream(msgContent);
-					request = MAPPER.readValue(in, untypedResponseMessageHeaders.getRequestClass());
-				} catch (JsonParseException | JsonMappingException je) {
-					throw new RestHandlerException(
-						String.format("Request did not match expected format %s.", untypedResponseMessageHeaders.getRequestClass().getSimpleName()),
-						HttpResponseStatus.BAD_REQUEST,
-						je);
-				}
-			}
-
-			final HandlerRequest<R, M> handlerRequest;
-
-			try {
-				handlerRequest = new HandlerRequest<R, M>(
-					request,
-					untypedResponseMessageHeaders.getUnresolvedMessageParameters(),
-					routedRequest.getRouteResult().pathParams(),
-					routedRequest.getRouteResult().queryParams(),
-					uploadedFiles.getUploadedFiles());
-			} catch (HandlerRequestException hre) {
-				log.error("Could not create the handler request.", hre);
-				throw new RestHandlerException(
-					String.format("Bad request, could not parse parameters: %s", hre.getMessage()),
-					HttpResponseStatus.BAD_REQUEST,
-					hre);
-			}
-
-			log.trace("Starting request processing.");
-			CompletableFuture<Void> requestProcessingFuture = respondToRequest(
-				ctx,
-				httpRequest,
-				handlerRequest,
-				gateway);
-
-			final FileUploads finalUploadedFiles = uploadedFiles;
-			requestProcessingFuture
-				.handle((Void ignored, Throwable throwable) -> {
-					if (throwable != null) {
-						return handleException(ExceptionUtils.stripCompletionException(throwable), ctx, httpRequest);
-					}
-					return CompletableFuture.<Void>completedFuture(null);
-				}).thenCompose(Function.identity())
-				.whenComplete((Void ignored, Throwable throwable) -> {
-					if (throwable != null) {
-						log.warn("An exception occurred while handling another exception.", throwable);
-					}
-					finalizeRequestProcessing(finalUploadedFiles);
-				});
-		} catch (Throwable e) {
-			final FileUploads finalUploadedFiles = uploadedFiles;
-			handleException(e, ctx, httpRequest)
-				.whenComplete((Void ignored, Throwable throwable) -> finalizeRequestProcessing(finalUploadedFiles));
+		if (!inFlightRequestTracker.registerRequest()) {
+			ctx.channel().close();
+			return;
 		}
+
+		final ByteBuf msgContent = ((FullHttpRequest) httpRequest).content();
+
+		uploadedFiles = FileUploadHandler.getMultipartFileUploads(ctx);
+
+		if (!untypedResponseMessageHeaders.acceptsFileUploads() && !uploadedFiles.getUploadedFiles().isEmpty()) {
+			throw new RestHandlerException("File uploads not allowed.", HttpResponseStatus.BAD_REQUEST);
+		}
+
+		R request;
+		if (msgContent.capacity() == 0) {
+			request = MAPPER.readValue("{}", untypedResponseMessageHeaders.getRequestClass());
+		} else {
+			InputStream in = new ByteBufInputStream(msgContent);
+			request = MAPPER.readValue(in, untypedResponseMessageHeaders.getRequestClass());
+		}
+
+		final HandlerRequest<R, M> handlerRequest = new HandlerRequest<R, M>(
+				request,
+				untypedResponseMessageHeaders.getUnresolvedMessageParameters(),
+				routedRequest.getRouteResult().pathParams(),
+				routedRequest.getRouteResult().queryParams(),
+				uploadedFiles.getUploadedFiles());
+
+		CompletableFuture<Void> requestProcessingFuture = respondToRequest(
+			ctx,
+			httpRequest,
+			handlerRequest,
+			gateway);
+
+		final FileUploads finalUploadedFiles = uploadedFiles;
+		requestProcessingFuture
+			.handle((Void ignored, Throwable throwable) -> {
+				if (throwable != null) {
+					return handleException(ExceptionUtils.stripCompletionException(throwable), ctx, httpRequest);
+				}
+				return CompletableFuture.<Void>completedFuture(null);
+			}).thenCompose(Function.identity())
+			.whenComplete((Void ignored, Throwable throwable) -> {
+				finalizeRequestProcessing(finalUploadedFiles);
+			});
 	}
 
 	private void finalizeRequestProcessing(FileUploads uploadedFiles) {
@@ -210,7 +148,6 @@ public abstract class AbstractHandler<T extends RestfulGateway, R extends Reques
 	private CompletableFuture<Void> handleException(Throwable throwable, ChannelHandlerContext ctx, HttpRequest httpRequest) {
 		FlinkHttpObjectAggregator flinkHttpObjectAggregator = ctx.pipeline().get(FlinkHttpObjectAggregator.class);
 		if (flinkHttpObjectAggregator == null) {
-			log.warn("The connection was unexpectedly closed by the client.");
 			return CompletableFuture.completedFuture(null);
 		}
 		int maxLength = flinkHttpObjectAggregator.maxContentLength() - OTHER_RESP_PAYLOAD_OVERHEAD;
@@ -218,11 +155,7 @@ public abstract class AbstractHandler<T extends RestfulGateway, R extends Reques
 			RestHandlerException rhe = (RestHandlerException) throwable;
 			String stackTrace = ExceptionUtils.stringifyException(rhe);
 			String truncatedStackTrace = Ascii.truncate(stackTrace, maxLength, "...");
-			if (log.isDebugEnabled()) {
-				log.error("Exception occurred in REST handler.", rhe);
-			} else {
-				log.error("Exception occurred in REST handler: {}", rhe.getMessage());
-			}
+			
 			return HandlerUtils.sendErrorResponse(
 				ctx,
 				httpRequest,
@@ -230,7 +163,6 @@ public abstract class AbstractHandler<T extends RestfulGateway, R extends Reques
 				rhe.getHttpResponseStatus(),
 				responseHeaders);
 		} else {
-			log.error("Unhandled exception.", throwable);
 			String stackTrace = String.format("<Exception on server side:%n%s%nEnd of exception on server side>",
 				ExceptionUtils.stringifyException(throwable));
 			String truncatedStackTrace = Ascii.truncate(stackTrace, maxLength, "...");
@@ -248,8 +180,6 @@ public abstract class AbstractHandler<T extends RestfulGateway, R extends Reques
 		synchronized (lock) {
 			if (terminationFuture == null) {
 				this.terminationFuture = FutureUtils.composeAfterwards(closeHandlerAsync(), inFlightRequestTracker::awaitAsync);
-			} else {
-				log.warn("The handler instance for {} had already been closed, but another attempt at closing it was made.", untypedResponseMessageHeaders.getTargetRestEndpointURL());
 			}
 			return this.terminationFuture;
 		}
@@ -261,11 +191,7 @@ public abstract class AbstractHandler<T extends RestfulGateway, R extends Reques
 
 	private void cleanupFileUploads(@Nullable FileUploads uploadedFiles) {
 		if (uploadedFiles != null) {
-			try {
-				uploadedFiles.close();
-			} catch (IOException e) {
-				log.warn("Could not cleanup uploaded files.", e);
-			}
+			uploadedFiles.close();
 		}
 	}
 

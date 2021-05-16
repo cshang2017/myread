@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.rest.handler;
 
 import org.apache.flink.runtime.rest.messages.MessageParameters;
@@ -65,13 +47,8 @@ public class HandlerRequest<R extends RequestBody, M extends MessageParameters> 
 		for (MessagePathParameter<?> pathParameter : messageParameters.getPathParameters()) {
 			String value = receivedPathParameters.get(pathParameter.getKey());
 			if (value != null) {
-				try {
-					pathParameter.resolveFromString(value);
-				} catch (Exception e) {
-					throw new HandlerRequestException("Cannot resolve path parameter (" + pathParameter.getKey() + ") from value \"" + value + "\".");
-				}
-
-				@SuppressWarnings("unchecked")
+				pathParameter.resolveFromString(value);
+							
 				Class<? extends MessagePathParameter<?>> clazz = (Class<? extends MessagePathParameter<?>>) pathParameter.getClass();
 				pathParameters.put(clazz, pathParameter);
 			}
@@ -83,13 +60,8 @@ public class HandlerRequest<R extends RequestBody, M extends MessageParameters> 
 				StringJoiner joiner = new StringJoiner(",");
 				values.forEach(joiner::add);
 
-				try {
-					queryParameter.resolveFromString(joiner.toString());
-				} catch (Exception e) {
-					throw new HandlerRequestException("Cannot resolve query parameter (" + queryParameter.getKey() + ") from value \"" + joiner + "\".");
-				}
-
-				@SuppressWarnings("unchecked")
+				queryParameter.resolveFromString(joiner.toString());
+				
 				Class<? extends MessageQueryParameter<?>> clazz = (Class<? extends MessageQueryParameter<?>>) queryParameter.getClass();
 				queryParameters.put(clazz, queryParameter);
 			}

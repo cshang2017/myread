@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.webmonitor;
 
 import org.apache.flink.api.common.time.Time;
@@ -221,11 +203,11 @@ public class WebMonitorEndpoint<T extends RestfulGateway> extends RestServerEndp
 	protected List<Tuple2<RestHandlerSpecification, ChannelInboundHandler>> initializeHandlers(final CompletableFuture<String> localAddressFuture) {
 		ArrayList<Tuple2<RestHandlerSpecification, ChannelInboundHandler>> handlers = new ArrayList<>(30);
 
-		final Collection<Tuple2<RestHandlerSpecification, ChannelInboundHandler>> webSubmissionHandlers = initializeWebSubmissionHandlers(localAddressFuture);
+		Collection<Tuple2<RestHandlerSpecification, ChannelInboundHandler>> webSubmissionHandlers = initializeWebSubmissionHandlers(localAddressFuture);
 		handlers.addAll(webSubmissionHandlers);
-		final boolean hasWebSubmissionHandlers = !webSubmissionHandlers.isEmpty();
+		boolean hasWebSubmissionHandlers = !webSubmissionHandlers.isEmpty();
 
-		final Time timeout = restConfiguration.getTimeout();
+		Time timeout = restConfiguration.getTimeout();
 
 		ClusterOverviewHandler clusterOverviewHandler = new ClusterOverviewHandler(
 			leaderRetriever,
@@ -582,15 +564,10 @@ public class WebMonitorEndpoint<T extends RestfulGateway> extends RestServerEndp
 
 		Optional<StaticFileServerHandler<T>> optWebContent;
 
-		try {
 			optWebContent = WebMonitorUtils.tryLoadWebContent(
 				leaderRetriever,
 				timeout,
 				webUiDir);
-		} catch (IOException e) {
-			log.warn("Could not load web content handler.", e);
-			optWebContent = Optional.empty();
-		}
 
 		handlers.add(Tuple2.of(clusterOverviewHandler.getMessageHeaders(), clusterOverviewHandler));
 		handlers.add(Tuple2.of(clusterConfigurationHandler.getMessageHeaders(), clusterConfigurationHandler));
@@ -760,10 +737,6 @@ public class WebMonitorEndpoint<T extends RestfulGateway> extends RestServerEndp
 	public void startInternal() throws Exception {
 		leaderElectionService.start(this);
 		startExecutionGraphCacheCleanupTask();
-
-		if (hasWebUI) {
-			log.info("Web frontend listening at {}.", getRestBaseUrl());
-		}
 	}
 
 	private void startExecutionGraphCacheCleanupTask() {
@@ -793,18 +766,9 @@ public class WebMonitorEndpoint<T extends RestfulGateway> extends RestServerEndp
 			shutdownFuture,
 			() -> {
 				Exception exception = null;
-				try {
-					log.info("Removing cache directory {}", webUiDir);
 					FileUtils.deleteDirectory(webUiDir);
-				} catch (Exception e) {
-					exception = e;
-				}
 
-				try {
 					leaderElectionService.stop();
-				} catch (Exception e) {
-					exception = ExceptionUtils.firstOrSuppressed(e, exception);
-				}
 
 				if (exception != null) {
 					throw exception;
@@ -818,7 +782,6 @@ public class WebMonitorEndpoint<T extends RestfulGateway> extends RestServerEndp
 
 	@Override
 	public void grantLeadership(final UUID leaderSessionID) {
-		log.info("{} was granted leadership with leaderSessionID={}", getRestBaseUrl(), leaderSessionID);
 		leaderElectionService.confirmLeadership(leaderSessionID, getRestBaseUrl());
 	}
 

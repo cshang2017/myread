@@ -1,27 +1,5 @@
-/*
- Licensed to the Apache Software Foundation (ASF) under one
- or more contributor license agreements.  See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership.  The ASF licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
- */
-
 package org.apache.flink.runtime.source.coordinator;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -33,7 +11,6 @@ import java.util.function.BiConsumer;
  * executor following the mailbox model and the other component notifies it when needed.
  */
 public class ExecutorNotifier implements AutoCloseable {
-	private static final Logger LOG = LoggerFactory.getLogger(ExecutorNotifier.class);
 	private final ScheduledExecutorService workerExecutor;
 	private final Executor executorToNotify;
 	private final AtomicBoolean closed;
@@ -79,12 +56,8 @@ public class ExecutorNotifier implements AutoCloseable {
 	 */
 	public <T> void notifyReadyAsync(Callable<T> callable, BiConsumer<T, Throwable> handler) {
 		workerExecutor.execute(() -> {
-			try {
 				T result = callable.call();
 				executorToNotify.execute(() -> handler.accept(result, null));
-			} catch (Throwable t) {
-				executorToNotify.execute(() -> handler.accept(null, t));
-			}
 		});
 	}
 
@@ -128,12 +101,8 @@ public class ExecutorNotifier implements AutoCloseable {
 			long initialDelayMs,
 			long periodMs) {
 		workerExecutor.scheduleAtFixedRate(() -> {
-			try {
 				T result = callable.call();
 				executorToNotify.execute(() -> handler.accept(result, null));
-			} catch (Throwable t) {
-				executorToNotify.execute(() -> handler.accept(null, t));
-			}
 		}, initialDelayMs, periodMs, TimeUnit.MILLISECONDS);
 	}
 
@@ -145,7 +114,6 @@ public class ExecutorNotifier implements AutoCloseable {
 	 */
 	public void close() throws InterruptedException {
 		if (!closed.compareAndSet(false, true)) {
-			LOG.debug("The executor notifier has been closed.");
 			return;
 		}
 		// Shutdown the worker executor, so no more worker tasks can run.

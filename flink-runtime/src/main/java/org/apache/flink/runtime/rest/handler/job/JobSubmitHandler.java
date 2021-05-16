@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.rest.handler.job;
 
 import org.apache.flink.api.common.time.Time;
@@ -83,24 +65,7 @@ public final class JobSubmitHandler extends AbstractRestHandler<DispatcherGatewa
 			Path::fromLocalFile
 		));
 
-		if (uploadedFiles.size() != nameToFile.size()) {
-			throw new RestHandlerException(
-				String.format("The number of uploaded files was %s than the expected count. Expected: %s Actual %s",
-					uploadedFiles.size() < nameToFile.size() ? "lower" : "higher",
-					nameToFile.size(),
-					uploadedFiles.size()),
-				HttpResponseStatus.BAD_REQUEST
-			);
-		}
-
 		final JobSubmitRequestBody requestBody = request.getRequestBody();
-
-		if (requestBody.jobGraphFileName == null) {
-			throw new RestHandlerException(
-				String.format("The %s field must not be omitted or be null.",
-					JobSubmitRequestBody.FIELD_NAME_JOB_GRAPH),
-				HttpResponseStatus.BAD_REQUEST);
-		}
 
 		CompletableFuture<JobGraph> jobGraphFuture = loadJobGraph(requestBody, nameToFile);
 
@@ -123,12 +88,7 @@ public final class JobSubmitHandler extends AbstractRestHandler<DispatcherGatewa
 			JobGraph jobGraph;
 			try (ObjectInputStream objectIn = new ObjectInputStream(jobGraphFile.getFileSystem().open(jobGraphFile))) {
 				jobGraph = (JobGraph) objectIn.readObject();
-			} catch (Exception e) {
-				throw new CompletionException(new RestHandlerException(
-					"Failed to deserialize JobGraph.",
-					HttpResponseStatus.BAD_REQUEST,
-					e));
-			}
+			} 
 			return jobGraph;
 		}, executor);
 	}
@@ -163,14 +123,7 @@ public final class JobSubmitHandler extends AbstractRestHandler<DispatcherGatewa
 
 		return jobGraphFuture.thenCombine(blobServerPortFuture, (JobGraph jobGraph, Integer blobServerPort) -> {
 			final InetSocketAddress address = new InetSocketAddress(gateway.getHostname(), blobServerPort);
-			try {
-				ClientUtils.uploadJobGraphFiles(jobGraph, jarFiles, artifacts, () -> new BlobClient(address, configuration));
-			} catch (FlinkException e) {
-				throw new CompletionException(new RestHandlerException(
-					"Could not upload job files.",
-					HttpResponseStatus.INTERNAL_SERVER_ERROR,
-					e));
-			}
+				ClientUtils.uploadJobGraphFiles(jobGraph, jarFiles, artifacts, () -> new BlobClient
 			return jobGraph;
 		});
 	}
@@ -185,7 +138,6 @@ public final class JobSubmitHandler extends AbstractRestHandler<DispatcherGatewa
 
 	private static final class MissingFileException extends RestHandlerException {
 
-		private static final long serialVersionUID = -7954810495610194965L;
 
 		MissingFileException(String type, String fileName) {
 			super(type + " file " + fileName + " could not be found on the server.", HttpResponseStatus.BAD_REQUEST);

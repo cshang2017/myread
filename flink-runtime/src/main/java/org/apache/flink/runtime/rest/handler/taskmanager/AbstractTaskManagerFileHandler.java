@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.rest.handler.taskmanager;
 
 import org.apache.flink.api.common.time.Time;
@@ -90,76 +72,44 @@ public abstract class AbstractTaskManagerFileHandler<M extends TaskManagerMessag
 			.build(
 				new CacheLoader<Tuple2<ResourceID, String>, CompletableFuture<TransientBlobKey>>() {
 					@Override
-					public CompletableFuture<TransientBlobKey> load(Tuple2<ResourceID, String> taskManagerIdAndFileName) throws Exception {
+					public CompletableFuture<TransientBlobKey> load(Tuple2<ResourceID, String> taskManagerIdAndFileName) {
 						return loadTaskManagerFile(taskManagerIdAndFileName);
 					}
 			});
 	}
 
 	@Override
-	protected CompletableFuture<Void> respondToRequest(ChannelHandlerContext ctx, HttpRequest httpRequest, HandlerRequest<EmptyRequestBody, M> handlerRequest, RestfulGateway gateway) throws RestHandlerException {
+	protected CompletableFuture<Void> respondToRequest(ChannelHandlerContext ctx, HttpRequest httpRequest, HandlerRequest<EmptyRequestBody, M> handlerRequest, RestfulGateway gateway) {
 		final ResourceID taskManagerId = handlerRequest.getPathParameter(TaskManagerIdPathParameter.class);
 
 		String filename = getFileName(handlerRequest);
 		final Tuple2<ResourceID, String> taskManagerIdAndFileName = new Tuple2<>(taskManagerId, filename);
-		final CompletableFuture<TransientBlobKey> blobKeyFuture;
-		try {
-			blobKeyFuture = fileBlobKeys.get(taskManagerIdAndFileName);
-		} catch (ExecutionException e) {
-			final Throwable cause = ExceptionUtils.stripExecutionException(e);
-			throw new RestHandlerException("Could not retrieve file blob key future.", HttpResponseStatus.INTERNAL_SERVER_ERROR, cause);
-		}
+		final CompletableFuture<TransientBlobKey> blobKeyFuture = fileBlobKeys.get(taskManagerIdAndFileName);
+		
 
 		final CompletableFuture<Void> resultFuture = blobKeyFuture.thenAcceptAsync(
 			(TransientBlobKey blobKey) -> {
-				final File file;
-				try {
-					file = transientBlobService.getFile(blobKey);
-				} catch (IOException e) {
-					throw new CompletionException(new FlinkException("Could not retrieve file from transient blob store.", e));
-				}
-
-				try {
-					HandlerUtils.transferFile(
+				File file = transientBlobService.getFile(blobKey);
+				HandlerUtils.transferFile(
 						ctx,
 						file,
 						httpRequest);
-				} catch (FlinkException e) {
-					throw new CompletionException(new FlinkException("Could not transfer file to client.", e));
-				}
 			},
 			ctx.executor());
 
 		return resultFuture.whenComplete(
 			(Void ignored, Throwable throwable) -> {
 				if (throwable != null) {
-					log.error("Failed to transfer file from TaskExecutor {}.", taskManagerId, throwable);
 					fileBlobKeys.invalidate(taskManagerId);
-
 					final Throwable strippedThrowable = ExceptionUtils.stripCompletionException(throwable);
-
-					if (strippedThrowable instanceof UnknownTaskExecutorException) {
-						throw new CompletionException(
-							new NotFoundException(
-								String.format("Failed to transfer file from TaskExecutor %s because it was unknown.", taskManagerId),
-								strippedThrowable));
-					} else {
-						throw new CompletionException(
-							new FlinkException(
-								String.format("Failed to transfer file from TaskExecutor %s.", taskManagerId),
-								strippedThrowable));
-					}
 				}
 			});
 	}
 
 	private CompletableFuture<TransientBlobKey> loadTaskManagerFile(Tuple2<ResourceID, String> taskManagerIdAndFileName) throws RestHandlerException {
-		log.debug("Load file from TaskManager {}.", taskManagerIdAndFileName.f0);
-
 		final ResourceManagerGateway resourceManagerGateway = resourceManagerGatewayRetriever
 			.getNow()
 			.orElseThrow(() -> {
-				log.debug("Could not connect to ResourceManager right now.");
 				return new RestHandlerException(
 					"Cannot connect to ResourceManager right now. Please try to refresh.",
 					HttpResponseStatus.NOT_FOUND);
@@ -171,8 +121,6 @@ public abstract class AbstractTaskManagerFileHandler<M extends TaskManagerMessag
 	protected abstract CompletableFuture<TransientBlobKey> requestFileUpload(ResourceManagerGateway resourceManagerGateway, Tuple2<ResourceID, String> taskManagerIdAndFileName);
 
 	private void removeBlob(RemovalNotification<Tuple2<ResourceID, String>, CompletableFuture<TransientBlobKey>> removalNotification) {
-		log.debug("Remove cached file for TaskExecutor {}.", removalNotification.getKey());
-
 		final CompletableFuture<TransientBlobKey> value = removalNotification.getValue();
 
 		if (value != null) {

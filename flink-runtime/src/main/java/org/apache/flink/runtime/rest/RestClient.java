@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.rest;
 
 import org.apache.flink.api.common.time.Time;
@@ -100,7 +82,6 @@ import static org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpRes
  * This client is the counter-part to the {@link RestServerEndpoint}.
  */
 public class RestClient implements AutoCloseableAsync {
-	private static final Logger LOG = LoggerFactory.getLogger(RestClient.class);
 
 	private static final ObjectMapper objectMapper = RestMapperUtils.getStrictObjectMapper();
 
@@ -122,7 +103,6 @@ public class RestClient implements AutoCloseableAsync {
 		ChannelInitializer<SocketChannel> initializer = new ChannelInitializer<SocketChannel>() {
 			@Override
 			protected void initChannel(SocketChannel socketChannel) {
-				try {
 					// SSL should be the first handler in the pipeline
 					if (sslHandlerFactory != null) {
 						socketChannel.pipeline().addLast("ssl", sslHandlerFactory.createNettySSLHandler(socketChannel.alloc()));
@@ -134,10 +114,6 @@ public class RestClient implements AutoCloseableAsync {
 						.addLast(new ChunkedWriteHandler()) // required for multipart-requests
 						.addLast(new IdleStateHandler(configuration.getIdlenessTimeout(), configuration.getIdlenessTimeout(), configuration.getIdlenessTimeout(), TimeUnit.MILLISECONDS))
 						.addLast(new ClientHandler());
-				} catch (Throwable t) {
-					t.printStackTrace();
-					ExceptionUtils.rethrow(t);
-				}
 			}
 		};
 		NioEventLoopGroup group = new NioEventLoopGroup(1, new ExecutorThreadFactory("flink-rest-client-netty"));
@@ -149,7 +125,6 @@ public class RestClient implements AutoCloseableAsync {
 			.channel(NioSocketChannel.class)
 			.handler(initializer);
 
-		LOG.debug("Rest client endpoint started.");
 	}
 
 	@Override
@@ -160,17 +135,11 @@ public class RestClient implements AutoCloseableAsync {
 	public void shutdown(Time timeout) {
 		final CompletableFuture<Void> shutDownFuture = shutdownInternally(timeout);
 
-		try {
 			shutDownFuture.get(timeout.toMilliseconds(), TimeUnit.MILLISECONDS);
-			LOG.debug("Rest endpoint shutdown complete.");
-		} catch (Exception e) {
-			LOG.warn("Rest endpoint shutdown failed.", e);
-		}
 	}
 
 	private CompletableFuture<Void> shutdownInternally(Time timeout) {
 		if (isRunning.compareAndSet(true, false)) {
-			LOG.debug("Shutting down rest endpoint.");
 
 			if (bootstrap != null) {
 				if (bootstrap.group() != null) {
@@ -228,14 +197,7 @@ public class RestClient implements AutoCloseableAsync {
 			U messageParameters,
 			R request,
 			Collection<FileUpload> fileUploads,
-			RestAPIVersion apiVersion) throws IOException {
-		Preconditions.checkNotNull(targetAddress);
-		Preconditions.checkArgument(NetUtils.isValidHostPort(targetPort), "The target port " + targetPort + " is not in the range [0, 65535].");
-		Preconditions.checkNotNull(messageHeaders);
-		Preconditions.checkNotNull(request);
-		Preconditions.checkNotNull(messageParameters);
-		Preconditions.checkNotNull(fileUploads);
-		Preconditions.checkState(messageParameters.isResolved(), "Message parameters were not resolved.");
+			RestAPIVersion apiVersion) {
 
 		if (!messageHeaders.getSupportedAPIVersions().contains(apiVersion)) {
 			throw new IllegalArgumentException(String.format(
@@ -249,7 +211,6 @@ public class RestClient implements AutoCloseableAsync {
 		String versionedHandlerURL = "/" + apiVersion.getURLVersionPrefix() + messageHeaders.getTargetRestEndpointURL();
 		String targetUrl = MessageParameters.resolveUrl(versionedHandlerURL, messageParameters);
 
-		LOG.debug("Sending request of class {} to {}:{}{}", request.getClass(), targetAddress, targetPort, targetUrl);
 		// serialize payload
 		StringWriter sw = new StringWriter();
 		objectMapper.writeValue(sw, request);
@@ -293,7 +254,6 @@ public class RestClient implements AutoCloseableAsync {
 
 			// takes care of splitting the request into multiple parts
 			HttpPostRequestEncoder bodyRequestEncoder;
-			try {
 				// we could use mixed attributes here but we have to ensure that the minimum size is greater than
 				// any file as the upload otherwise fails
 				DefaultHttpDataFactory httpDataFactory = new DefaultHttpDataFactory(true);
@@ -315,15 +275,8 @@ public class RestClient implements AutoCloseableAsync {
 					bodyRequestEncoder.addBodyFileUpload("file_" + fileIndex, file, fileUpload.getContentType(), false);
 					fileIndex++;
 				}
-			} catch (HttpPostRequestEncoder.ErrorDataEncoderException e) {
-				throw new IOException("Could not encode request.", e);
-			}
 
-			try {
 				httpRequest = bodyRequestEncoder.finalizeRequest();
-			} catch (HttpPostRequestEncoder.ErrorDataEncoderException e) {
-				throw new IOException("Could not finalize request.", e);
-			}
 
 			return new MultipartRequest(httpRequest, bodyRequestEncoder);
 		}
@@ -352,15 +305,10 @@ public class RestClient implements AutoCloseableAsync {
 					boolean success = false;
 
 					try {
-						if (handler == null) {
-							throw new IOException("Netty pipeline was not properly initialized.");
-						} else {
+						
 							httpRequest.writeTo(channel);
 							future = handler.getJsonFuture();
 							success = true;
-						}
-					} catch (IOException e) {
-						future = FutureUtils.completedExceptionally(new ConnectionException("Could not write request.", e));
 					} finally {
 						if (!success) {
 							channel.close();
@@ -378,27 +326,9 @@ public class RestClient implements AutoCloseableAsync {
 	private static <P extends ResponseBody> CompletableFuture<P> parseResponse(JsonResponse rawResponse, JavaType responseType) {
 		CompletableFuture<P> responseFuture = new CompletableFuture<>();
 		final JsonParser jsonParser = objectMapper.treeAsTokens(rawResponse.json);
-		try {
 			P response = objectMapper.readValue(jsonParser, responseType);
 			responseFuture.complete(response);
-		} catch (IOException originalException) {
-			// the received response did not matched the expected response type
-
-			// lets see if it is an ErrorResponse instead
-			try {
-				ErrorResponseBody error = objectMapper.treeToValue(rawResponse.getJson(), ErrorResponseBody.class);
-				responseFuture.completeExceptionally(new RestClientException(error.errors.toString(), rawResponse.getHttpResponseStatus()));
-			} catch (JsonProcessingException jpe2) {
-				// if this fails it is either the expected type or response type was wrong, most likely caused
-				// by a client/search MessageHeaders mismatch
-				LOG.error("Received response was neither of the expected type ({}) nor an error. Response={}", responseType, rawResponse, jpe2);
-				responseFuture.completeExceptionally(
-					new RestClientException(
-						"Response was neither of the expected type(" + responseType + ") nor an error.",
-						originalException,
-						rawResponse.getHttpResponseStatus()));
-			}
-		}
+	
 		return responseFuture;
 	}
 
@@ -512,26 +442,8 @@ public class RestClient implements AutoCloseableAsync {
 			JsonNode rawResponse;
 			try (InputStream in = new ByteBufInputStream(content)) {
 				rawResponse = objectMapper.readTree(in);
-				LOG.debug("Received response {}.", rawResponse);
-			} catch (JsonProcessingException je) {
-				LOG.error("Response was not valid JSON.", je);
-				// let's see if it was a plain-text message instead
-				content.readerIndex(0);
-				try (ByteBufInputStream in = new ByteBufInputStream(content)) {
-					byte[] data = new byte[in.available()];
-					in.readFully(data);
-					String message = new String(data);
-					LOG.error("Unexpected plain-text response: {}", message);
-					jsonFuture.completeExceptionally(new RestClientException("Response was not valid JSON, but plain-text: " + message, je, msg.getStatus()));
-				} catch (IOException e) {
-					jsonFuture.completeExceptionally(new RestClientException("Response was not valid JSON, nor plain-text.", je, msg.getStatus()));
-				}
-				return;
-			} catch (IOException ioe) {
-				LOG.error("Response could not be read.", ioe);
-				jsonFuture.completeExceptionally(new RestClientException("Response could not be read.", ioe, msg.getStatus()));
-				return;
 			}
+			
 			jsonFuture.complete(new JsonResponse(rawResponse, msg.getStatus()));
 		}
 	}
@@ -551,14 +463,6 @@ public class RestClient implements AutoCloseableAsync {
 
 		public HttpResponseStatus getHttpResponseStatus() {
 			return httpResponseStatus;
-		}
-
-		@Override
-		public String toString() {
-			return "JsonResponse{" +
-				"json=" + json +
-				", httpResponseStatus=" + httpResponseStatus +
-				'}';
 		}
 	}
 }

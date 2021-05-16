@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.rest;
 
 import org.apache.flink.annotation.VisibleForTesting;
@@ -200,7 +182,6 @@ public abstract class RestServerEndpoint implements AutoCloseableAsync {
 
 			int chosenPort = 0;
 			while (portsIterator.hasNext()) {
-				try {
 					chosenPort = portsIterator.next();
 					final ChannelFuture channel;
 					if (restBindAddress == null) {
@@ -210,19 +191,8 @@ public abstract class RestServerEndpoint implements AutoCloseableAsync {
 					}
 					serverChannel = channel.syncUninterruptibly().channel();
 					break;
-				} catch (final Exception e) {
-					// continue if the exception is due to the port being in use, fail early otherwise
-					if (!(e instanceof org.jboss.netty.channel.ChannelException || e instanceof java.net.BindException)) {
-						throw e;
-					}
-				}
 			}
 
-			if (serverChannel == null) {
-				throw new BindException("Could not start rest endpoint on any port in port range " + restBindPortRange);
-			}
-
-			log.debug("Binding rest endpoint to {}:{}.", restBindAddress, chosenPort);
 
 			final InetSocketAddress bindAddress = (InetSocketAddress) serverChannel.localAddress();
 			final String advertisedAddress;
@@ -232,8 +202,6 @@ public abstract class RestServerEndpoint implements AutoCloseableAsync {
 				advertisedAddress = bindAddress.getAddress().getHostAddress();
 			}
 			final int port = bindAddress.getPort();
-
-			log.info("Rest endpoint listening at {}:{}", advertisedAddress, port);
 
 			restBaseUrl = new URL(determineProtocol(), advertisedAddress, port, "").toString();
 
@@ -263,15 +231,8 @@ public abstract class RestServerEndpoint implements AutoCloseableAsync {
 			Preconditions.checkState(state != State.CREATED, "The RestServerEndpoint has not been started yet.");
 			Channel server = this.serverChannel;
 
-			if (server != null) {
-				try {
 					return ((InetSocketAddress) server.localAddress());
-				} catch (Exception e) {
-					log.error("Cannot access local server address", e);
-				}
-			}
 
-			return null;
 		}
 	}
 
@@ -299,7 +260,6 @@ public abstract class RestServerEndpoint implements AutoCloseableAsync {
 
 				shutDownFuture.whenComplete(
 					(Void ignored, Throwable throwable) -> {
-						log.info("Shut down complete.");
 						if (throwable != null) {
 							terminationFuture.completeExceptionally(throwable);
 						} else {
@@ -422,7 +382,6 @@ public abstract class RestServerEndpoint implements AutoCloseableAsync {
 			registerHandler(router, versionedHandlerURL, specificationHandler.f0.getHttpMethod(), specificationHandler.f1);
 			if (supportedVersion.isDefaultVersion()) {
 				// setup unversioned url for convenience and backwards compatibility
-				log.debug("Register handler {} under {}@{}.", specificationHandler.f1, specificationHandler.f0.getHttpMethod(), handlerURL);
 				registerHandler(router, handlerURL, specificationHandler.f0.getHttpMethod(), specificationHandler.f1);
 			}
 		}
@@ -569,7 +528,6 @@ public abstract class RestServerEndpoint implements AutoCloseableAsync {
 		 * with a preceding ':' character.
 		 */
 		public static final class CaseInsensitiveOrderComparator implements Comparator<String>, Serializable {
-			private static final long serialVersionUID = 8550835445193437027L;
 
 			@Override
 			public int compare(String s1, String s2) {
