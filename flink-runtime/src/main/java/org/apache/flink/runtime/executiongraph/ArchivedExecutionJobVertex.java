@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.runtime.accumulators.StringifiedAccumulatorResult;
@@ -26,9 +9,9 @@ import java.io.Serializable;
 
 import static org.apache.flink.runtime.executiongraph.ExecutionJobVertex.getAggregateJobVertexState;
 
+@Getter
 public class ArchivedExecutionJobVertex implements AccessExecutionJobVertex, Serializable {
 
-	private static final long serialVersionUID = -5768187638639437957L;
 	private final ArchivedExecutionVertex[] taskVertices;
 
 	private final JobVertexID id;
@@ -75,39 +58,6 @@ public class ArchivedExecutionJobVertex implements AccessExecutionJobVertex, Ser
 		this.archivedUserAccumulators = archivedUserAccumulators;
 	}
 
-	// --------------------------------------------------------------------------------------------
-	//   Accessors
-	// --------------------------------------------------------------------------------------------
-
-	@Override
-	public String getName() {
-		return name;
-	}
-
-	@Override
-	public int getParallelism() {
-		return parallelism;
-	}
-
-	@Override
-	public int getMaxParallelism() {
-		return maxParallelism;
-	}
-
-	@Override
-	public ResourceProfile getResourceProfile() {
-		return resourceProfile;
-	}
-
-	@Override
-	public JobVertexID getJobVertexId() {
-		return id;
-	}
-
-	@Override
-	public ArchivedExecutionVertex[] getTaskVertices() {
-		return taskVertices;
-	}
 
 	@Override
 	public ExecutionState getAggregateState() {
@@ -117,15 +67,6 @@ public class ArchivedExecutionJobVertex implements AccessExecutionJobVertex, Ser
 		}
 
 		return getAggregateJobVertexState(num, parallelism);
-	}
-
-	// --------------------------------------------------------------------------------------------
-	//  Static / pre-assigned input splits
-	// --------------------------------------------------------------------------------------------
-
-	@Override
-	public StringifiedAccumulatorResult[] getAggregatedUserAccumulatorsStringified() {
-		return archivedUserAccumulators;
 	}
 
 }

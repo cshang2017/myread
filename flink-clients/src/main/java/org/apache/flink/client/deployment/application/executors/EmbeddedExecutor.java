@@ -54,8 +54,6 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 @Internal
 public class EmbeddedExecutor implements PipelineExecutor {
 
-	private static final Logger LOG = LoggerFactory.getLogger(EmbeddedExecutor.class);
-
 	public static final String NAME = "embedded";
 
 	private final Collection<JobID> submittedJobIds;
@@ -98,7 +96,6 @@ public class EmbeddedExecutor implements PipelineExecutor {
 	}
 
 	private CompletableFuture<JobClient> getJobClientFuture(final JobID jobId) {
-		LOG.info("Job {} was recovered successfully.", jobId);
 		return CompletableFuture.completedFuture(jobClientCreator.getJobClient(jobId));
 	}
 
@@ -109,11 +106,6 @@ public class EmbeddedExecutor implements PipelineExecutor {
 		final JobID actualJobId = jobGraph.getJobID();
 
 		this.submittedJobIds.add(actualJobId);
-		LOG.info("Job {} is submitted.", actualJobId);
-
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("Effective Configuration: {}", configuration);
-		}
 
 		final CompletableFuture<JobID> jobSubmissionFuture = submitJob(
 				configuration,
@@ -130,20 +122,14 @@ public class EmbeddedExecutor implements PipelineExecutor {
 			final DispatcherGateway dispatcherGateway,
 			final JobGraph jobGraph,
 			final Time rpcTimeout) {
-		checkNotNull(jobGraph);
-
-		LOG.info("Submitting Job with JobId={}.", jobGraph.getJobID());
 
 		return dispatcherGateway
 				.getBlobServerPort(rpcTimeout)
 				.thenApply(blobServerPort -> new InetSocketAddress(dispatcherGateway.getHostname(), blobServerPort))
 				.thenCompose(blobServerAddress -> {
 
-					try {
 						ClientUtils.extractAndUploadJobGraphFiles(jobGraph, () -> new BlobClient(blobServerAddress, configuration));
-					} catch (FlinkException e) {
-						throw new CompletionException(e);
-					}
+					
 
 					return dispatcherGateway.submitJob(jobGraph, rpcTimeout);
 				}).thenApply(ack -> jobGraph.getJobID());

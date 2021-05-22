@@ -53,16 +53,21 @@ public class AbstractSessionClusterExecutor<ClusterID, ClientFactory extends Clu
 	}
 
 	@Override
-	public CompletableFuture<JobClient> execute(@Nonnull final Pipeline pipeline, @Nonnull final Configuration configuration) throws Exception {
-		final JobGraph jobGraph = PipelineExecutorUtils.getJobGraph(pipeline, configuration);
+	public CompletableFuture<JobClient> execute(Pipeline pipeline, Configuration configuration) {
+		
+		JobGraph jobGraph = PipelineExecutorUtils.getJobGraph(pipeline, configuration);
 
-		try (final ClusterDescriptor<ClusterID> clusterDescriptor = clusterClientFactory.createClusterDescriptor(configuration)) {
-			final ClusterID clusterID = clusterClientFactory.getClusterId(configuration);
-			checkState(clusterID != null);
+		ClusterDescriptor<ClusterID> clusterDescriptor 
+		    = clusterClientFactory.createClusterDescriptor(configuration);
+		ClusterID clusterID = clusterClientFactory.getClusterId(configuration);
 
-			final ClusterClientProvider<ClusterID> clusterClientProvider = clusterDescriptor.retrieve(clusterID);
-			ClusterClient<ClusterID> clusterClient = clusterClientProvider.getClusterClient();
-			return clusterClient
+		ClusterClientProvider<ClusterID> clusterClientProvider = clusterDescriptor.retrieve(clusterID);
+		clusterDescriptor.close();
+
+		ClusterClient<ClusterID> clusterClient = clusterClientProvider.getClusterClient();
+
+		
+		return clusterClient
 					.submitJob(jobGraph)
 					.thenApplyAsync(jobID -> (JobClient) new ClusterClientJobClientAdapter<>(
 							clusterClientProvider,

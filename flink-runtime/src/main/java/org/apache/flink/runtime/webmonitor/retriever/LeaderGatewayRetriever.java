@@ -52,29 +52,11 @@ public abstract class LeaderGatewayRetriever<T extends RpcGateway> extends Leade
 			try {
 				currentGatewayFuture.get();
 			} catch (ExecutionException | InterruptedException executionException) {
-				String leaderAddress;
 
-				try {
-					Tuple2<String, UUID> leaderAddressSessionId = getLeaderNow()
+				Tuple2<String, UUID> leaderAddressSessionId = getLeaderNow()
 						.orElse(Tuple2.of("unknown address", HighAvailabilityServices.DEFAULT_LEADER_ID));
 
-					leaderAddress = leaderAddressSessionId.f0;
-				} catch (Exception e) {
-					log.warn("Could not obtain the current leader.", e);
-					leaderAddress = "unknown leader address";
-				}
-
-				if (log.isDebugEnabled() || log.isTraceEnabled()) {
-					// only log exceptions on debug or trace level
-					log.warn(
-						"Error while retrieving the leader gateway. Retrying to connect to {}.",
-						leaderAddress,
-						ExceptionUtils.stripExecutionException(executionException));
-				} else {
-					log.warn(
-						"Error while retrieving the leader gateway. Retrying to connect to {}.",
-						leaderAddress);
-				}
+				String leaderAddress = leaderAddressSessionId.f0;
 			}
 
 			// we couldn't resolve the gateway --> let's try again

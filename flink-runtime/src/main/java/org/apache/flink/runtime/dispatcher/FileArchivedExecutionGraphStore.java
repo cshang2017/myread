@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.dispatcher;
 
 import org.apache.flink.annotation.VisibleForTesting;
@@ -39,9 +21,6 @@ import org.apache.flink.shaded.guava18.com.google.common.cache.CacheLoader;
 import org.apache.flink.shaded.guava18.com.google.common.cache.LoadingCache;
 import org.apache.flink.shaded.guava18.com.google.common.cache.RemovalListener;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.annotation.Nullable;
 
 import java.io.File;
@@ -61,8 +40,6 @@ import java.util.concurrent.TimeUnit;
  * the stored execution graphs are periodically cleaned up.
  */
 public class FileArchivedExecutionGraphStore implements ArchivedExecutionGraphStore {
-
-	private static final Logger LOG = LoggerFactory.getLogger(FileArchivedExecutionGraphStore.class);
 
 	private final File storageDir;
 
@@ -90,12 +67,6 @@ public class FileArchivedExecutionGraphStore implements ArchivedExecutionGraphSt
 
 		final File storageDirectory = initExecutionGraphStorageDirectory(rootDir);
 
-		LOG.info(
-			"Initializing {}: Storage directory {}, expiration time {}, maximum cache size {} bytes.",
-			FileArchivedExecutionGraphStore.class.getSimpleName(),
-			storageDirectory,
-			expirationTime.toMilliseconds(),
-			maximumCacheSizeBytes);
 
 		this.storageDir = Preconditions.checkNotNull(storageDirectory);
 		Preconditions.checkArgument(
@@ -139,12 +110,8 @@ public class FileArchivedExecutionGraphStore implements ArchivedExecutionGraphSt
 	@Override
 	@Nullable
 	public ArchivedExecutionGraph get(JobID jobId) {
-		try {
 			return archivedExecutionGraphCache.get(jobId);
-		} catch (ExecutionException e) {
-			LOG.debug("Could not load archived execution graph for job id {}.", jobId, e);
-			return null;
-		}
+		
 	}
 
 	@Override
@@ -152,11 +119,6 @@ public class FileArchivedExecutionGraphStore implements ArchivedExecutionGraphSt
 		final JobStatus jobStatus = archivedExecutionGraph.getState();
 		final JobID jobId = archivedExecutionGraph.getJobID();
 		final String jobName = archivedExecutionGraph.getJobName();
-
-		Preconditions.checkArgument(
-			jobStatus.isGloballyTerminalState(),
-			"The job " + jobName + '(' + jobId +
-				") is not in a globally terminal state. Instead it is in state " + jobStatus + '.');
 
 		switch (jobStatus) {
 			case FINISHED:
@@ -222,7 +184,6 @@ public class FileArchivedExecutionGraphStore implements ArchivedExecutionGraphSt
 		if (archivedExecutionGraphFile.exists()) {
 			return Math.toIntExact(archivedExecutionGraphFile.length());
 		} else {
-			LOG.debug("Could not find archived execution graph file for {}. Estimating the size instead.", jobId);
 			return serializableExecutionGraph.getAllVertices().size() * 1000 +
 				serializableExecutionGraph.getAccumulatorsSerialized().size() * 1000;
 		}
@@ -235,9 +196,6 @@ public class FileArchivedExecutionGraphStore implements ArchivedExecutionGraphSt
 			try (FileInputStream fileInputStream = new FileInputStream(archivedExecutionGraphFile)) {
 				return InstantiationUtil.deserializeObject(fileInputStream, getClass().getClassLoader());
 			}
-		} else {
-			throw new FileNotFoundException("Could not find file for archived execution graph " + jobId +
-				". This indicates that the file either has been deleted or never written.");
 		}
 	}
 
@@ -258,11 +216,7 @@ public class FileArchivedExecutionGraphStore implements ArchivedExecutionGraphSt
 
 		final File archivedExecutionGraphFile = getExecutionGraphFile(jobId);
 
-		try {
 			FileUtils.deleteFileOrDirectory(archivedExecutionGraphFile);
-		} catch (IOException e) {
-			LOG.debug("Could not delete file {}.", archivedExecutionGraphFile, e);
-		}
 
 		archivedExecutionGraphCache.invalidate(jobId);
 		jobDetailsCache.invalidate(jobId);

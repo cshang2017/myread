@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 package org.apache.flink.runtime.executiongraph;
 
@@ -39,37 +22,27 @@ import java.util.Optional;
 public interface AccessExecutionGraph {
 	/**
 	 * Returns the job plan as a JSON string.
-	 *
-	 * @return job plan as a JSON string
 	 */
 	String getJsonPlan();
 
 	/**
 	 * Returns the {@link JobID} for this execution graph.
-	 *
-	 * @return job ID for this execution graph
 	 */
 	JobID getJobID();
 
 	/**
 	 * Returns the job name for the execution graph.
-	 *
-	 * @return job name for this execution graph
 	 */
 	String getJobName();
 
 	/**
 	 * Returns the current {@link JobStatus} for this execution graph.
-	 *
-	 * @return job status for this execution graph
 	 */
 	JobStatus getState();
 
 	/**
 	 * Returns the exception that caused the job to fail. This is the first root exception
 	 * that was not recoverable and triggered job failure.
-	 *
-	 * @return failure causing exception, or null
 	 */
 	@Nullable
 	ErrorInfo getFailureInfo();
@@ -78,22 +51,16 @@ public interface AccessExecutionGraph {
 	 * Returns the job vertex for the given {@link JobVertexID}.
 	 *
 	 * @param id id of job vertex to be returned
-	 * @return job vertex for the given id, or {@code null}
 	 */
-	@Nullable
 	AccessExecutionJobVertex getJobVertex(JobVertexID id);
 
 	/**
 	 * Returns a map containing all job vertices for this execution graph.
-	 *
-	 * @return map containing all job vertices for this execution graph
 	 */
 	Map<JobVertexID, ? extends AccessExecutionJobVertex> getAllVertices();
 
 	/**
 	 * Returns an iterable containing all job vertices for this execution graph in the order they were created.
-	 *
-	 * @return iterable containing all job vertices for this execution graph in the order they were created
 	 */
 	Iterable<? extends AccessExecutionJobVertex> getVerticesTopologically();
 

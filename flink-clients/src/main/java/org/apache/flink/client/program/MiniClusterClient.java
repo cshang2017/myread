@@ -40,7 +40,7 @@ public class MiniClusterClient implements ClusterClient<MiniClusterClient.MiniCl
 	private final MiniCluster miniCluster;
 	private final Configuration configuration;
 
-	public MiniClusterClient(@Nonnull Configuration configuration, @Nonnull MiniCluster miniCluster) {
+	public MiniClusterClient(Configuration configuration, MiniCluster miniCluster) {
 		this.configuration = configuration;
 		this.miniCluster = miniCluster;
 	}
@@ -51,7 +51,7 @@ public class MiniClusterClient implements ClusterClient<MiniClusterClient.MiniCl
 	}
 
 	@Override
-	public CompletableFuture<JobID> submitJob(@Nonnull JobGraph jobGraph) {
+	public CompletableFuture<JobID> submitJob(JobGraph jobGraph) {
 		return miniCluster.submitJob(jobGraph).thenApply(JobSubmissionResult::getJobID);
 	}
 
@@ -118,14 +118,12 @@ public class MiniClusterClient implements ClusterClient<MiniClusterClient.MiniCl
 
 	@Override
 	public void shutDownCluster() {
-			miniCluster.closeAsync().get();
-		
+		miniCluster.closeAsync().get();
 	}
 
 	@Override
 	public String getWebInterfaceURL() {
-			return miniCluster.getRestAddress().get().toString();
-		
+		return miniCluster.getRestAddress().get().toString();
 	}
 
 	@Override
@@ -133,14 +131,10 @@ public class MiniClusterClient implements ClusterClient<MiniClusterClient.MiniCl
 			JobID jobId,
 			OperatorID operatorId,
 			CoordinationRequest request) {
-			SerializedValue<CoordinationRequest> serializedRequest = new SerializedValue<>(request);
-			return miniCluster.deliverCoordinationRequestToCoordinator(jobId, operatorId, serializedRequest);
-		
+		SerializedValue<CoordinationRequest> serializedRequest = new SerializedValue<>(request);
+		return miniCluster.deliverCoordinationRequestToCoordinator(jobId, operatorId, serializedRequest);
 	}
 
-	/**
-	 * The type of the Cluster ID for the local {@link MiniCluster}.
-	 */
 	public enum MiniClusterId {
 		INSTANCE
 	}

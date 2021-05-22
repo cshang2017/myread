@@ -53,8 +53,6 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 
 	public static final int MAX_DISTINCT_LOCATIONS_TO_CONSIDER = 8;
 
-	// --------------------------------------------------------------------------------------------
-
 	private final ExecutionJobVertex jobVertex;
 
 	private final Map<IntermediateResultPartitionID, IntermediateResultPartition> resultPartitions;
@@ -579,16 +577,11 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 	 */
 	public Execution resetForNewExecution(final long timestamp, final long originatingGlobalModVersion)
 			throws GlobalModVersionMismatch {
-		LOG.debug("Resetting execution vertex {} for new execution.", getTaskNameWithSubtaskIndex());
 
 		synchronized (priorExecutions) {
 			// check if another global modification has been triggered since the
 			// action that originally caused this reset/restart happened
 			final long actualModVersion = getExecutionGraph().getGlobalModVersion();
-			if (actualModVersion > originatingGlobalModVersion) {
-				// global change happened since, reject this action
-				throw new GlobalModVersionMismatch(originatingGlobalModVersion, actualModVersion);
-			}
 
 			return resetForNewExecutionInternal(timestamp, originatingGlobalModVersion);
 		}
@@ -631,9 +624,7 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 			}
 
 			CoLocationGroup grp = jobVertex.getCoLocationGroup();
-			if (grp != null) {
 				locationConstraint = grp.getLocationConstraint(subTaskIndex);
-			}
 
 			// register this execution at the execution graph, to receive call backs
 			getExecutionGraph().registerExecution(newExecution);
@@ -650,9 +641,6 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 			}
 
 			return newExecution;
-		}
-		else {
-			throw new IllegalStateException("Cannot reset a vertex that is in non-terminal state " + oldState);
 		}
 	}
 
@@ -677,10 +665,7 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 	}
 
 	public void tryAssignResource(LogicalSlot slot) {
-		if (!currentExecution.tryAssignResource(slot)) {
-			throw new IllegalStateException("Could not assign resource " + slot + " to current execution " +
-				currentExecution + '.');
-		}
+		currentExecution.tryAssignResource(slot);
 	}
 
 	public void deploy() throws JobException {
@@ -691,9 +676,6 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 	public void deployToSlot(LogicalSlot slot) throws JobException {
 		if (currentExecution.tryAssignResource(slot)) {
 			currentExecution.deploy();
-		} else {
-			throw new IllegalStateException("Could not assign resource " + slot + " to current execution " +
-				currentExecution + '.');
 		}
 	}
 
@@ -741,20 +723,11 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 		}
 
 		final IntermediateResultPartition partition = resultPartitions.get(partitionId.getPartitionId());
-
-		if (partition == null) {
-			throw new IllegalStateException("Unknown partition " + partitionId + ".");
-		}
-
 		partition.markDataProduced();
 
 		if (partition.getIntermediateResult().getResultType().isPipelined()) {
 			// Schedule or update receivers of this partition
 			execution.scheduleOrUpdateConsumers(partition.getConsumers());
-		}
-		else {
-			throw new IllegalArgumentException("ScheduleOrUpdateConsumers msg is only valid for" +
-					"pipelined partitions.");
 		}
 	}
 
@@ -841,10 +814,6 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 		}
 		return false;
 	}
-
-	// --------------------------------------------------------------------------------------------
-	//   Notifications from the Execution Attempt
-	// --------------------------------------------------------------------------------------------
 
 	void executionFinished(Execution execution) {
 		getExecutionGraph().vertexFinished();

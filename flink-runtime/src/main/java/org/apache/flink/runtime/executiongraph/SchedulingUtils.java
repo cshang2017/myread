@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.api.common.JobStatus;
@@ -138,63 +120,17 @@ public class SchedulingUtils {
 
 		// this future is complete once all slot futures are complete.
 		// the future fails once one slot future fails.
-		final ConjunctFuture<Collection<Execution>> allAllocationsFuture = FutureUtils.combineAll(allAllocationFutures);
+		ConjunctFuture<Collection<Execution>> allAllocationsFuture = FutureUtils.combineAll(allAllocationFutures);
 
 		return allAllocationsFuture.thenAccept(
 			(Collection<Execution> executionsToDeploy) -> {
 				for (Execution execution : executionsToDeploy) {
-					try {
 						execution.deploy();
-					} catch (Throwable t) {
-						throw new CompletionException(
-							new FlinkException(
-								String.format("Could not deploy execution %s.", execution),
-								t));
-					}
 				}
 			})
 			// Generate a more specific failure message for the eager scheduling
 			.exceptionally(
 				(Throwable throwable) -> {
-					final Throwable strippedThrowable = ExceptionUtils.stripCompletionException(throwable);
-					final Throwable resultThrowable;
-					if (strippedThrowable instanceof TimeoutException) {
-						int numTotal = allAllocationsFuture.getNumFuturesTotal();
-						int numComplete = allAllocationsFuture.getNumFuturesCompleted();
-
-						String message = "Could not allocate all requires slots within timeout of "
-							+ executionGraph.getAllocationTimeout() + ". Slots required: "
-							+ numTotal + ", slots allocated: " + numComplete
-							+ ", previous allocation IDs: " + allPreviousAllocationIds;
-
-						StringBuilder executionMessageBuilder = new StringBuilder();
-
-						for (int i = 0; i < allAllocationFutures.size(); i++) {
-							CompletableFuture<Execution> executionFuture = allAllocationFutures.get(i);
-
-							try {
-								Execution execution = executionFuture.getNow(null);
-								if (execution != null) {
-									executionMessageBuilder.append("completed: " + execution);
-								} else {
-									executionMessageBuilder.append("incomplete: " + executionFuture);
-								}
-							} catch (CompletionException completionException) {
-								executionMessageBuilder.append("completed exceptionally: "
-									+ completionException + "/" + executionFuture);
-							}
-
-							if (i < allAllocationFutures.size() - 1) {
-								executionMessageBuilder.append(", ");
-							}
-						}
-
-						message += ", execution status: " + executionMessageBuilder.toString();
-
-						resultThrowable = new NoResourceAvailableException(message);
-					} else {
-						resultThrowable = strippedThrowable;
-					}
 
 					throw new CompletionException(resultThrowable);
 				});

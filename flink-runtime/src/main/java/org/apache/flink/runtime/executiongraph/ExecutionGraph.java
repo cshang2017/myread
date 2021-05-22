@@ -142,11 +142,6 @@ import static org.apache.flink.util.Preconditions.checkState;
  */
 public class ExecutionGraph implements AccessExecutionGraph {
 
-	/** The log object used for debugging. */
-	static final Logger LOG = LoggerFactory.getLogger(ExecutionGraph.class);
-
-	// --------------------------------------------------------------------------------------------
-
 	/** Job specific information like the job id, job name, job configuration, etc. */
 	private final JobInformation jobInformation;
 
@@ -435,7 +430,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		ExecutionVertex[] tasksToWaitFor = collectExecutionVertices(verticesToWaitFor);
 		ExecutionVertex[] tasksToCommitTo = collectExecutionVertices(verticesToCommitTo);
 
-		final Collection<OperatorCoordinatorCheckpointContext> operatorCoordinators = buildOpCoordinatorCheckpointContexts();
+		Collection<OperatorCoordinatorCheckpointContext> operatorCoordinators = buildOpCoordinatorCheckpointContexts();
 
 		checkpointStatsTracker = checkNotNull(statsTracker, "CheckpointStatsTracker");
 
@@ -453,8 +448,6 @@ public class ExecutionGraph implements AccessExecutionGraph {
 				}
 			}
 		);
-
-		checkState(checkpointCoordinatorTimer == null);
 
 		checkpointCoordinatorTimer = Executors.newSingleThreadScheduledExecutor(
 			new DispatcherThreadFactory(
@@ -478,9 +471,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 		// register the master hooks on the checkpoint coordinator
 		for (MasterTriggerRestoreHook<?> hook : masterHooks) {
-			if (!checkpointCoordinator.addMasterHook(hook)) {
-				LOG.warn("Trying to register multiple checkpoint hooks with the name: {}", hook.getIdentifier());
-			}
+			checkpointCoordinator.addMasterHook(hook);
 		}
 
 		checkpointCoordinator.setCheckpointStatsTracker(checkpointStatsTracker);
@@ -530,17 +521,11 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	private ExecutionVertex[] collectExecutionVertices(List<ExecutionJobVertex> jobVertices) {
 		if (jobVertices.size() == 1) {
 			ExecutionJobVertex jv = jobVertices.get(0);
-			if (jv.getGraph() != this) {
-				throw new IllegalArgumentException("Can only use ExecutionJobVertices of this ExecutionGraph");
-			}
 			return jv.getTaskVertices();
 		}
 		else {
 			ArrayList<ExecutionVertex> all = new ArrayList<>();
 			for (ExecutionJobVertex jv : jobVertices) {
-				if (jv.getGraph() != this) {
-					throw new IllegalArgumentException("Can only use ExecutionJobVertices of this ExecutionGraph");
-				}
 				all.addAll(Arrays.asList(jv.getTaskVertices()));
 			}
 			return all.toArray(new ExecutionVertex[all.size()]);
@@ -737,19 +722,11 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	}
 
 	private static SerializedValue<OptionalFailure<Object>> serializeAccumulator(String name, OptionalFailure<Accumulator<?, ?>> accumulator) {
-		try {
 			if (accumulator.isFailure()) {
 				return new SerializedValue<>(OptionalFailure.ofFailure(accumulator.getFailureCause()));
 			}
 			return new SerializedValue<>(OptionalFailure.of(accumulator.getUnchecked().getLocalValue()));
-		} catch (IOException ioe) {
-			LOG.error("Could not serialize accumulator " + name + '.', ioe);
-			try {
-				return new SerializedValue<>(OptionalFailure.ofFailure(ioe));
-			} catch (IOException e) {
-				throw new RuntimeException("It should never happen that we cannot serialize the accumulator serialization exception.", e);
-			}
-		}
+		
 	}
 
 	/**
@@ -777,12 +754,6 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 		assertRunningInJobMasterMainThread();
 
-		LOG.debug("Attaching {} topologically sorted vertices to existing job graph with {} " +
-				"vertices and {} intermediate results.",
-			topologiallySorted.size(),
-			tasks.size(),
-			intermediateResults.size());
-
 		final ArrayList<ExecutionJobVertex> newExecJobVertices = new ArrayList<>(topologiallySorted.size());
 		final long createTimestamp = System.currentTimeMillis();
 
@@ -805,17 +776,9 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			ejv.connectToPredecessors(this.intermediateResults);
 
 			ExecutionJobVertex previousTask = this.tasks.putIfAbsent(jobVertex.getID(), ejv);
-			if (previousTask != null) {
-				throw new JobException(String.format("Encountered two job vertices with ID %s : previous=[%s] / new=[%s]",
-					jobVertex.getID(), ejv, previousTask));
-			}
 
 			for (IntermediateResult res : ejv.getProducedDataSets()) {
 				IntermediateResult previousDataSet = this.intermediateResults.putIfAbsent(res.getId(), res);
-				if (previousDataSet != null) {
-					throw new JobException(String.format("Encountered two intermediate data set with ID %s : previous=[%s] / new=[%s]",
-						res.getId(), res, previousDataSet));
-				}
 			}
 
 			this.verticesInCreationOrder.add(ejv);
@@ -841,7 +804,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		}
 	}
 
-	public void scheduleForExecution() throws JobException {
+	public void scheduleForExecution()  {
 
 		assertRunningInJobMasterMainThread();
 
@@ -863,20 +826,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 				newSchedulingFuture.whenComplete(
 					(Void ignored, Throwable throwable) -> {
 						if (throwable != null) {
-							final Throwable strippedThrowable = ExceptionUtils.stripCompletionException(throwable);
-
-							if (!(strippedThrowable instanceof CancellationException)) {
-								// only fail if the scheduling future was not canceled
-								failGlobal(strippedThrowable);
-							}
+							...
 						}
 					});
 			} else {
 				newSchedulingFuture.cancel(false);
 			}
-		}
-		else {
-			throw new IllegalStateException("Job may only be scheduled from state " + JobStatus.CREATED);
 		}
 	}
 
@@ -986,26 +941,17 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 			jobVerticesTerminationFuture.whenComplete(
 				(Void ignored, Throwable throwable) -> {
-					if (throwable != null) {
-						LOG.debug("Could not properly suspend the execution graph.", throwable);
-					}
 
 					onTerminalState(state);
-					LOG.info("Job {} has been suspended.", getJobID());
 				});
-		} else {
-			throw new IllegalStateException(String.format("Could not suspend because transition from %s to %s failed.", state, JobStatus.SUSPENDED));
-		}
+		} d
 	}
 
 	void failGlobalIfExecutionIsStillRunning(Throwable cause, ExecutionAttemptID failingAttempt) {
 		final Execution failedExecution = currentExecutions.get(failingAttempt);
 		if (failedExecution != null && failedExecution.getState() == ExecutionState.RUNNING) {
 			failGlobal(cause);
-		} else {
-			LOG.debug("The failing attempt {} belongs to an already not" +
-				" running task thus won't fail the job", failingAttempt);
-		}
+		} 
 	}
 
 	/**
@@ -1076,20 +1022,16 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		try {
 			// check the global version to see whether this recovery attempt is still valid
 			if (globalModVersion != expectedGlobalVersion) {
-				LOG.info("Concurrent full restart subsumed this restart.");
 				return;
 			}
 
 			final JobStatus current = state;
 
 			if (current == JobStatus.CANCELED) {
-				LOG.info("Canceled job during restart. Aborting restart.");
 				return;
 			} else if (current == JobStatus.FAILED) {
-				LOG.info("Failed job during restart. Aborting restart.");
 				return;
 			} else if (current == JobStatus.SUSPENDED) {
-				LOG.info("Suspended job during restart. Aborting restart.");
 				return;
 			} else if (current != JobStatus.RESTARTING) {
 				throw new IllegalStateException("Can only restart job from state restarting.");
@@ -1143,14 +1085,11 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	@Override
 	public ArchivedExecutionConfig getArchivedExecutionConfig() {
 		// create a summary of all relevant data accessed in the web interface's JobConfigHandler
-		try {
 			ExecutionConfig executionConfig = jobInformation.getSerializedExecutionConfig().deserializeValue(userClassLoader);
 			if (executionConfig != null) {
 				return executionConfig.archive();
 			}
-		} catch (IOException | ClassNotFoundException e) {
-			LOG.error("Couldn't create ArchivedExecutionConfig for job {} ", getJobID(), e);
-		}
+		
 		return null;
 	}
 
@@ -1212,14 +1151,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		// consistency check
 		if (current.isTerminalState()) {
 			String message = "Job is trying to leave terminal state " + current;
-			LOG.error(message);
 			throw new IllegalStateException(message);
 		}
 
 		// now do the actual state transition
 		if (state == current) {
 			state = newState;
-			LOG.info("Job {} ({}) switched from state {} to {}.", getJobName(), getJobID(), current, newState, error);
 
 			stateTimestamps[newState.ordinal()] = System.currentTimeMillis();
 			notifyJobStatusChange(newState, error);
@@ -1263,16 +1200,9 @@ public class ExecutionGraph implements AccessExecutionGraph {
 				// we do the final cleanup in the I/O executor, because it may involve
 				// some heavier work
 
-				try {
 					for (ExecutionJobVertex ejv : verticesInCreationOrder) {
 						ejv.getJobVertex().finalizeOnMaster(getUserClassLoader());
 					}
-				}
-				catch (Throwable t) {
-					ExceptionUtils.rethrowIfFatalError(t);
-					failGlobal(new Exception("Failed to finalize execution on master", t));
-					return;
-				}
 
 				// if we do not make this state transition, then a concurrent
 				// cancellation or failure happened
@@ -1317,8 +1247,6 @@ public class ExecutionGraph implements AccessExecutionGraph {
 				// concurrent job status change, let's check again
 			}
 			else if (current.isGloballyTerminalState()) {
-				LOG.warn("Job has entered globally terminal state without waiting for all " +
-					"job vertices to reach final state.");
 				break;
 			}
 			else {
@@ -1347,18 +1275,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		if (currentState == JobStatus.FAILING || currentState == JobStatus.RESTARTING) {
 			final Throwable failureCause = this.failureCause;
 
-			if (LOG.isDebugEnabled()) {
-				LOG.debug("Try to restart or fail the job {} ({}) if no longer possible.", getJobName(), getJobID(), failureCause);
-			} else {
-				LOG.info("Try to restart or fail the job {} ({}) if no longer possible.", getJobName(), getJobID());
-			}
 
 			final boolean isFailureCauseAllowingRestart = !(failureCause instanceof SuppressRestartsException);
 			final boolean isRestartStrategyAllowingRestart = restartStrategy.canRestart();
 			boolean isRestartable = isFailureCauseAllowingRestart && isRestartStrategyAllowingRestart;
 
 			if (isRestartable && transitionState(currentState, JobStatus.RESTARTING)) {
-				LOG.info("Restarting the job {} ({}).", getJobName(), getJobID());
 
 				RestartCallback restarter = new ExecutionGraphRestartCallback(this, globalModVersionForRestart);
 				FutureUtils.assertNoException(
@@ -1376,8 +1298,6 @@ public class ExecutionGraph implements AccessExecutionGraph {
 				final String cause2 = isRestartStrategyAllowingRestart ? null :
 					"the restart strategy prevented it";
 
-				LOG.info("Could not restart the job {} ({}) because {}.", getJobName(), getJobID(),
-					StringUtils.concatenateWithAnd(cause1, cause2), failureCause);
 				onTerminalState(JobStatus.FAILED);
 
 				return true;
@@ -1419,9 +1339,6 @@ public class ExecutionGraph implements AccessExecutionGraph {
 				checkpointCoordinatorTimer = null;
 			}
 		}
-		catch (Exception e) {
-			LOG.error("Error while cleaning up after execution", e);
-		}
 		finally {
 			terminationFuture.complete(status);
 		}
@@ -1443,18 +1360,9 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		final Execution attempt = currentExecutions.get(state.getID());
 
 		if (attempt != null) {
-			try {
 				final boolean stateUpdated = updateStateInternal(state, attempt);
 				maybeReleasePartitions(attempt);
 				return stateUpdated;
-			}
-			catch (Throwable t) {
-				ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
-
-				// failures during updates leave the ExecutionGraph inconsistent
-				failGlobal(t);
-				return false;
-			}
 		}
 		else {
 			return false;
@@ -1545,14 +1453,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		AccumulatorSnapshot serializedAccumulators = state.getAccumulators();
 
 		if (serializedAccumulators != null) {
-			try {
 				return serializedAccumulators.deserializeUserAccumulators(userClassLoader);
-			}
-			catch (Throwable t) {
-				// we catch Throwable here to include all form of linking errors that may
-				// occur if user classes are missing in the classpath
-				LOG.error("Failed to deserialize final accumulator results.", t);
-			}
 		}
 		return null;
 	}
@@ -1569,16 +1470,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 		final Execution execution = currentExecutions.get(partitionId.getProducerId());
 
-		if (execution == null) {
-			throw new ExecutionGraphException("Cannot find execution for execution Id " +
-				partitionId.getPartitionId() + '.');
-		}
-		else if (execution.getVertex() == null){
-			throw new ExecutionGraphException("Execution with execution Id " +
-				partitionId.getPartitionId() + " has no vertex assigned.");
-		} else {
 			execution.getVertex().scheduleOrUpdateConsumers(partitionId);
-		}
 	}
 
 	public Map<ExecutionAttemptID, Execution> getRegisteredExecutions() {
@@ -1609,7 +1501,6 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	 */
 	public void updateAccumulators(AccumulatorSnapshot accumulatorSnapshot) {
 		Map<String, Accumulator<?, ?>> userAccumulators;
-		try {
 			userAccumulators = accumulatorSnapshot.deserializeUserAccumulators(userClassLoader);
 
 			ExecutionAttemptID execID = accumulatorSnapshot.getExecutionAttemptID();
@@ -1619,9 +1510,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			} else {
 				LOG.debug("Received accumulator result for unknown execution {}.", execID);
 			}
-		} catch (Exception e) {
-			LOG.error("Cannot update accumulators for job {}.", getJobID(), e);
-		}
+		
 	}
 
 	// --------------------------------------------------------------------------------------------
@@ -1640,11 +1529,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			final Throwable serializedError = error == null ? null : new SerializedThrowable(error);
 
 			for (JobStatusListener listener : jobStatusListeners) {
-				try {
 					listener.jobStatusChanges(getJobID(), newState, timestamp, serializedError);
-				} catch (Throwable t) {
-					LOG.warn("Error while notifying JobStatusListener", t);
-				}
 			}
 		}
 	}
@@ -1665,19 +1550,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			// by filtering out late failure calls, we can save some work in
 			// avoiding redundant local failover
 			if (execution.getGlobalModVersion() == globalModVersion) {
-				try {
 					// fail all checkpoints which the failed task has not yet acknowledged
 					if (checkpointCoordinator != null) {
 						checkpointCoordinator.failUnacknowledgedPendingCheckpointsFor(execution.getAttemptId(), ex);
 					}
 
 					failoverStrategy.onTaskFailure(execution, ex);
-				}
-				catch (Throwable t) {
-					// bug in the failover strategy - fall back to global failover
-					LOG.warn("Error in failover strategy - falling back to global restart", t);
-					failGlobal(ex);
-				}
 			}
 		}
 	}

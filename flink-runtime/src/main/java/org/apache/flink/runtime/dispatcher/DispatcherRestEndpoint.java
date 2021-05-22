@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.dispatcher;
 
 import org.apache.flink.api.common.time.Time;
@@ -106,7 +88,6 @@ public class DispatcherRestEndpoint extends WebMonitorEndpoint<DispatcherGateway
 	@Override
 	protected Collection<Tuple2<RestHandlerSpecification, ChannelInboundHandler>> initializeWebSubmissionHandlers(CompletableFuture<String> localAddressFuture) {
 		if (restConfiguration.isWebSubmitEnabled()) {
-			try {
 				final Time timeout = restConfiguration.getTimeout();
 
 				webSubmissionExtension = WebMonitorUtils.loadWebSubmissionExtension(
@@ -119,16 +100,7 @@ public class DispatcherRestEndpoint extends WebMonitorEndpoint<DispatcherGateway
 					clusterConfiguration);
 
 				return webSubmissionExtension.getHandlers();
-			} catch (FlinkException e) {
-				if (log.isDebugEnabled()) {
-					log.debug("Failed to load web based job submission extension.", e);
-				} else {
-					log.info("Failed to load web based job submission extension. " +
-						"Probable reason: flink-runtime-web is not in the classpath.");
-				}
-			}
-		} else {
-			log.info("Web-based job submission is not enabled.");
+			
 		}
 
 		return Collections.emptyList();

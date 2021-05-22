@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 package org.apache.flink.runtime.executiongraph;
 
@@ -55,7 +38,6 @@ import org.apache.flink.util.OptionalFailure;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.SerializedValue;
 
-import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -80,9 +62,6 @@ import java.util.stream.Collectors;
  * contains an {@link ExecutionVertex} for each parallel instance of that operation.
  */
 public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable<ArchivedExecutionJobVertex> {
-
-	/** Use the same log for all ExecutionGraph classes. */
-	private static final Logger LOG = ExecutionGraph.LOG;
 
 	public static final int VALUE_NOT_SET = -1;
 
@@ -152,10 +131,6 @@ public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable
 			long initialGlobalModVersion,
 			long createTimestamp) throws JobException {
 
-		if (graph == null || jobVertex == null) {
-			throw new NullPointerException();
-		}
-
 		this.graph = graph;
 		this.jobVertex = jobVertex;
 
@@ -170,15 +145,6 @@ public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable
 		setMaxParallelismInternal(maxParallelismConfigured ?
 				configuredMaxParallelism : KeyGroupRangeAssignment.computeDefaultMaxParallelism(numTaskVertices));
 
-		// verify that our parallelism is not higher than the maximum parallelism
-		if (numTaskVertices > maxParallelism) {
-			throw new JobException(
-				String.format("Vertex %s's parallelism (%s) is higher than the max parallelism (%s). Please lower the parallelism or increase the max parallelism.",
-					jobVertex.getName(),
-					numTaskVertices,
-					maxParallelism));
-		}
-
 		this.parallelism = numTaskVertices;
 		this.resourceProfile = ResourceProfile.fromResourceSpec(jobVertex.getMinResources(), MemorySize.ZERO);
 
@@ -189,11 +155,6 @@ public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable
 		// take the sharing group
 		this.slotSharingGroup = jobVertex.getSlotSharingGroup();
 		this.coLocationGroup = jobVertex.getCoLocationGroup();
-
-		// setup the coLocation group
-		if (coLocationGroup != null && slotSharingGroup == null) {
-			throw new JobException("Vertex uses a co-location constraint without using slot sharing");
-		}
 
 		// create the intermediate results
 		this.producedDataSets = new IntermediateResult[jobVertex.getNumberOfProducedIntermediateDataSets()];
@@ -234,43 +195,30 @@ public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable
 			this.operatorCoordinators = Collections.emptyList();
 		} else {
 			final ArrayList<OperatorCoordinatorHolder> coordinators = new ArrayList<>(coordinatorProviders.size());
-			try {
 				for (final SerializedValue<OperatorCoordinator.Provider> provider : coordinatorProviders) {
 					coordinators.add(OperatorCoordinatorHolder.create(provider, this, graph.getUserClassLoader()));
 				}
-			} catch (Exception | LinkageError e) {
-				IOUtils.closeAllQuietly(coordinators);
-				throw new JobException("Cannot instantiate the coordinator for operator " + getName(), e);
-			}
+			
 			this.operatorCoordinators = Collections.unmodifiableList(coordinators);
 		}
 
 		// set up the input splits, if the vertex has any
-		try {
-			@SuppressWarnings("unchecked")
 			InputSplitSource<InputSplit> splitSource = (InputSplitSource<InputSplit>) jobVertex.getInputSplitSource();
 
 			if (splitSource != null) {
 				Thread currentThread = Thread.currentThread();
 				ClassLoader oldContextClassLoader = currentThread.getContextClassLoader();
 				currentThread.setContextClassLoader(graph.getUserClassLoader());
-				try {
 					inputSplits = splitSource.createInputSplits(numTaskVertices);
 
 					if (inputSplits != null) {
 						splitAssigner = splitSource.getInputSplitAssigner(inputSplits);
 					}
-				} finally {
 					currentThread.setContextClassLoader(oldContextClassLoader);
-				}
 			}
 			else {
 				inputSplits = null;
 			}
-		}
-		catch (Throwable t) {
-			throw new JobException("Creating the input splits caused an error: " + t.getMessage(), t);
-		}
 	}
 
 	/**
@@ -416,34 +364,16 @@ public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable
 
 	//---------------------------------------------------------------------------------------------
 
-	public void connectToPredecessors(Map<IntermediateDataSetID, IntermediateResult> intermediateDataSets) throws JobException {
+	public void connectToPredecessors(Map<IntermediateDataSetID, IntermediateResult> intermediateDataSets) {
 
 		List<JobEdge> inputs = jobVertex.getInputs();
-
-		if (LOG.isDebugEnabled()) {
-			LOG.debug(String.format("Connecting ExecutionJobVertex %s (%s) to %d predecessors.", jobVertex.getID(), jobVertex.getName(), inputs.size()));
-		}
 
 		for (int num = 0; num < inputs.size(); num++) {
 			JobEdge edge = inputs.get(num);
 
-			if (LOG.isDebugEnabled()) {
-				if (edge.getSource() == null) {
-					LOG.debug(String.format("Connecting input %d of vertex %s (%s) to intermediate result referenced via ID %s.",
-							num, jobVertex.getID(), jobVertex.getName(), edge.getSourceId()));
-				} else {
-					LOG.debug(String.format("Connecting input %d of vertex %s (%s) to intermediate result referenced via predecessor %s (%s).",
-							num, jobVertex.getID(), jobVertex.getName(), edge.getSource().getProducer().getID(), edge.getSource().getProducer().getName()));
-				}
-			}
-
 			// fetch the intermediate result via ID. if it does not exist, then it either has not been created, or the order
 			// in which this method is called for the job vertices is not a topological order
 			IntermediateResult ires = intermediateDataSets.get(edge.getSourceId());
-			if (ires == null) {
-				throw new JobException("Cannot connect this job graph to the previous graph. No previous intermediate result found for ID "
-						+ edge.getSourceId());
-			}
 
 			this.inputs.add(ires);
 
@@ -505,17 +435,11 @@ public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable
 			}
 
 			// set up the input splits again
-			try {
 				if (this.inputSplits != null) {
 					// lazy assignment
-					@SuppressWarnings("unchecked")
 					InputSplitSource<InputSplit> splitSource = (InputSplitSource<InputSplit>) jobVertex.getInputSplitSource();
 					this.splitAssigner = splitSource.getInputSplitAssigner(this.inputSplits);
 				}
-			}
-			catch (Throwable t) {
-				throw new RuntimeException("Re-creating the input split assigner failed: " + t.getMessage(), t);
-			}
 		}
 	}
 

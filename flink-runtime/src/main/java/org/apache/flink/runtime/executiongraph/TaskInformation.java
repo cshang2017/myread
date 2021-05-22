@@ -17,14 +17,10 @@ import java.io.Serializable;
 @AllArgsConstructor
 public class TaskInformation implements Serializable {
 
-
 	/** Job vertex id of the associated job vertex. */
 	private final JobVertexID jobVertexId;
 
-	/** Name of the task. */
 	private final String taskName;
-
-	/** The number of subtasks for this operator. */
 	private final int numberOfSubtasks;
 
 	/** The maximum parallelism == number of key groups. */

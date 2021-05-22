@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.entrypoint;
 
 import org.apache.flink.api.common.time.Time;
@@ -103,8 +85,6 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 		.key("internal.cluster.execution-mode")
 		.defaultValue(ExecutionMode.NORMAL.toString());
 
-	protected static final Logger LOG = LoggerFactory.getLogger(ClusterEntrypoint.class);
-
 	protected static final int STARTUP_FAILURE_RETURN_CODE = 1;
 	protected static final int RUNTIME_FAILURE_RETURN_CODE = 2;
 
@@ -159,9 +139,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 	}
 
 	public void startCluster() throws ClusterEntrypointException {
-		LOG.info("Starting {}.", getClass().getSimpleName());
 
-		try {
 			replaceGracefulExitWithHaltIfConfigured(configuration);
 			PluginManager pluginManager = PluginUtils.createPluginManagerFromRootFolder(configuration);
 			configureFileSystems(configuration, pluginManager);
@@ -173,32 +151,14 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 
 				return null;
 			});
-		} catch (Throwable t) {
-			final Throwable strippedThrowable = ExceptionUtils.stripException(t, UndeclaredThrowableException.class);
-
-			try {
-				// clean up any partial state
-				shutDownAsync(
-					ApplicationStatus.FAILED,
-					ExceptionUtils.stringifyException(strippedThrowable),
-					false).get(INITIALIZATION_SHUTDOWN_TIMEOUT.toMilliseconds(), TimeUnit.MILLISECONDS);
-			} catch (InterruptedException | ExecutionException | TimeoutException e) {
-				strippedThrowable.addSuppressed(e);
-			}
-
-			throw new ClusterEntrypointException(
-				String.format("Failed to initialize the cluster entrypoint %s.", getClass().getSimpleName()),
-				strippedThrowable);
-		}
+		
 	}
 
 	private void configureFileSystems(Configuration configuration, PluginManager pluginManager) {
-		LOG.info("Install default filesystem.");
 		FileSystem.initialize(configuration, pluginManager);
 	}
 
 	private SecurityContext installSecurityContext(Configuration configuration) throws Exception {
-		LOG.info("Install security context.");
 
 		SecurityUtils.install(new SecurityConfiguration(configuration));
 
@@ -248,8 +208,6 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 	}
 
 	protected void initializeServices(Configuration configuration, PluginManager pluginManager) throws Exception {
-
-		LOG.info("Initializing cluster services.");
 
 		synchronized (lock) {
 			commonRpcService = AkkaRpcServiceUtils.createRemoteRpcService(
@@ -335,53 +293,25 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 
 			final Collection<CompletableFuture<Void>> terminationFutures = new ArrayList<>(3);
 
-			if (blobServer != null) {
-				try {
 					blobServer.close();
-				} catch (Throwable t) {
-					exception = ExceptionUtils.firstOrSuppressed(t, exception);
-				}
-			}
 
-			if (haServices != null) {
-				try {
 					if (cleanupHaData) {
 						haServices.closeAndCleanupAllData();
 					} else {
 						haServices.close();
 					}
-				} catch (Throwable t) {
-					exception = ExceptionUtils.firstOrSuppressed(t, exception);
-				}
-			}
 
-			if (archivedExecutionGraphStore != null) {
-				try {
 					archivedExecutionGraphStore.close();
-				} catch (Throwable t) {
-					exception = ExceptionUtils.firstOrSuppressed(t, exception);
-				}
-			}
 
-			if (processMetricGroup != null) {
 				processMetricGroup.close();
-			}
 
-			if (metricRegistry != null) {
 				terminationFutures.add(metricRegistry.shutdown());
-			}
 
-			if (ioExecutor != null) {
 				terminationFutures.add(ExecutorUtils.nonBlockingShutdown(shutdownTimeout, TimeUnit.MILLISECONDS, ioExecutor));
-			}
 
-			if (commonRpcService != null) {
 				terminationFutures.add(commonRpcService.stopService());
-			}
 
-			if (exception != null) {
 				terminationFutures.add(FutureUtils.completedExceptionally(exception));
-			}
 
 			return FutureUtils.completeAll(terminationFutures);
 		}
@@ -390,7 +320,6 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 	@Override
 	public void onFatalError(Throwable exception) {
 		Throwable enrichedException = ClusterEntryPointExceptionUtils.tryEnrichClusterEntryPointError(exception);
-		LOG.error("Fatal error occurred in the cluster entrypoint.", enrichedException);
 
 		System.exit(RUNTIME_FAILURE_RETURN_CODE);
 	}
@@ -415,10 +344,6 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 			@Nullable String diagnostics,
 			boolean cleanupHaData) {
 		if (isShutDown.compareAndSet(false, true)) {
-			LOG.info("Shutting {} down with application status {}. Diagnostics {}.",
-				getClass().getSimpleName(),
-				applicationStatus,
-				diagnostics);
 
 			final CompletableFuture<Void> shutDownApplicationFuture = closeClusterComponent(applicationStatus, diagnostics);
 
@@ -516,12 +441,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 	public static void runClusterEntrypoint(ClusterEntrypoint clusterEntrypoint) {
 
 		final String clusterEntrypointName = clusterEntrypoint.getClass().getSimpleName();
-		try {
 			clusterEntrypoint.startCluster();
-		} catch (ClusterEntrypointException e) {
-			LOG.error(String.format("Could not start cluster entrypoint %s.", clusterEntrypointName), e);
-			System.exit(STARTUP_FAILURE_RETURN_CODE);
-		}
 
 		clusterEntrypoint.getTerminationFuture().whenComplete((applicationStatus, throwable) -> {
 			final int returnCode;
@@ -532,7 +452,6 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 				returnCode = applicationStatus.processExitCode();
 			}
 
-			LOG.info("Terminating cluster entrypoint process {} with exit code {}.", clusterEntrypointName, returnCode, throwable);
 			System.exit(returnCode);
 		});
 	}

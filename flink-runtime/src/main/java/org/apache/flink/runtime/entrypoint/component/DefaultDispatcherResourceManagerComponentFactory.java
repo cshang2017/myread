@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.entrypoint.component;
 
 import org.apache.flink.api.common.time.Time;
@@ -61,9 +43,6 @@ import org.apache.flink.runtime.webmonitor.retriever.impl.RpcGatewayRetriever;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.annotation.Nonnull;
 
 import java.util.ArrayList;
@@ -76,8 +55,6 @@ import java.util.concurrent.ScheduledExecutorService;
  * Abstract class which implements the creation of the {@link DispatcherResourceManagerComponent} components.
  */
 public class DefaultDispatcherResourceManagerComponentFactory implements DispatcherResourceManagerComponentFactory {
-
-	private final Logger log = LoggerFactory.getLogger(getClass());
 
 	@Nonnull
 	private final DispatcherRunnerFactory dispatcherRunnerFactory;
@@ -116,7 +93,6 @@ public class DefaultDispatcherResourceManagerComponentFactory implements Dispatc
 		ResourceManager<?> resourceManager = null;
 		DispatcherRunner dispatcherRunner = null;
 
-		try {
 			dispatcherLeaderRetrievalService = highAvailabilityServices.getDispatcherLeaderRetriever();
 
 			resourceManagerRetrievalService = highAvailabilityServices.getResourceManagerLeaderRetriever();
@@ -159,7 +135,6 @@ public class DefaultDispatcherResourceManagerComponentFactory implements Dispatc
 				highAvailabilityServices.getClusterRestEndpointLeaderElectionService(),
 				fatalErrorHandler);
 
-			log.debug("Starting Dispatcher REST endpoint.");
 			webMonitorEndpoint.start();
 
 			final String hostname = RpcUtils.getHostname(rpcService);
@@ -190,7 +165,6 @@ public class DefaultDispatcherResourceManagerComponentFactory implements Dispatc
 				historyServerArchivist,
 				metricRegistry.getMetricQueryServiceGatewayRpcAddress());
 
-			log.debug("Starting Dispatcher.");
 			dispatcherRunner = dispatcherRunnerFactory.createDispatcherRunner(
 				highAvailabilityServices.getDispatcherLeaderElectionService(),
 				fatalErrorHandler,
@@ -199,7 +173,6 @@ public class DefaultDispatcherResourceManagerComponentFactory implements Dispatc
 				rpcService,
 				partialDispatcherServices);
 
-			log.debug("Starting ResourceManager.");
 			resourceManager.start();
 
 			resourceManagerRetrievalService.start(resourceManagerGatewayRetriever);
@@ -213,48 +186,7 @@ public class DefaultDispatcherResourceManagerComponentFactory implements Dispatc
 				webMonitorEndpoint,
 				fatalErrorHandler);
 
-		} catch (Exception exception) {
-			// clean up all started components
-			if (dispatcherLeaderRetrievalService != null) {
-				try {
-					dispatcherLeaderRetrievalService.stop();
-				} catch (Exception e) {
-					exception = ExceptionUtils.firstOrSuppressed(e, exception);
-				}
-			}
-
-			if (resourceManagerRetrievalService != null) {
-				try {
-					resourceManagerRetrievalService.stop();
-				} catch (Exception e) {
-					exception = ExceptionUtils.firstOrSuppressed(e, exception);
-				}
-			}
-
-			final Collection<CompletableFuture<Void>> terminationFutures = new ArrayList<>(3);
-
-			if (webMonitorEndpoint != null) {
-				terminationFutures.add(webMonitorEndpoint.closeAsync());
-			}
-
-			if (resourceManager != null) {
-				terminationFutures.add(resourceManager.closeAsync());
-			}
-
-			if (dispatcherRunner != null) {
-				terminationFutures.add(dispatcherRunner.closeAsync());
-			}
-
-			final FutureUtils.ConjunctFuture<Void> terminationFuture = FutureUtils.completeAll(terminationFutures);
-
-			try {
-				terminationFuture.get();
-			} catch (Exception e) {
-				exception = ExceptionUtils.firstOrSuppressed(e, exception);
-			}
-
-			throw new FlinkException("Could not create the DispatcherResourceManagerComponent.", exception);
-		}
+			
 	}
 
 	public static DefaultDispatcherResourceManagerComponentFactory createSessionComponentFactory(
