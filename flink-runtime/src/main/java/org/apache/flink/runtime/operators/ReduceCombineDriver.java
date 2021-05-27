@@ -1,22 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-
 package org.apache.flink.runtime.operators;
 
 import java.io.EOFException;
@@ -51,11 +32,8 @@ import org.apache.flink.util.MutableObjectIterator;
  */
 public class ReduceCombineDriver<T> implements Driver<ReduceFunction<T>, T> {
 
-	private static final Logger LOG = LoggerFactory.getLogger(ReduceCombineDriver.class);
-
 	/** Fix length records with a length below this threshold will be in-place sorted, if possible. */
 	private static final int THRESHOLD_FOR_IN_PLACE_SORTING = 32;
-
 
 	private TaskContext<ReduceFunction<T>, T> taskContext;
 
@@ -130,10 +108,6 @@ public class ReduceCombineDriver<T> implements Driver<ReduceFunction<T>, T> {
 		ExecutionConfig executionConfig = taskContext.getExecutionConfig();
 		objectReuseEnabled = executionConfig.isObjectReuseEnabled();
 
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("ReduceCombineDriver object reuse: " + (objectReuseEnabled ? "ENABLED" : "DISABLED") + ".");
-		}
-
 		switch (strategy) {
 			case SORTED_PARTIAL_REDUCE:
 				// instantiate a fix-length in-place sorter, if possible, otherwise the out-of-place sorter
@@ -155,11 +129,6 @@ public class ReduceCombineDriver<T> implements Driver<ReduceFunction<T>, T> {
 
 	@Override
 	public void run() throws Exception {
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("Combiner starting.");
-		}
-
-		final Counter numRecordsIn = taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsInCounter();
 
 		final MutableObjectIterator<T> in = taskContext.getInput(0);
 		final TypeSerializer<T> serializer = this.serializer;
@@ -169,7 +138,6 @@ public class ReduceCombineDriver<T> implements Driver<ReduceFunction<T>, T> {
 				if (objectReuseEnabled) {
 					T value = serializer.createInstance();
 					while (running && (value = in.next(value)) != null) {
-						numRecordsIn.inc();
 
 						// try writing to the sorter first
 						if (sorter.write(value)) {
@@ -188,7 +156,6 @@ public class ReduceCombineDriver<T> implements Driver<ReduceFunction<T>, T> {
 				} else {
 					T value;
 					while (running && (value = in.next()) != null) {
-						numRecordsIn.inc();
 
 						// try writing to the sorter first
 						if (sorter.write(value)) {
@@ -215,28 +182,12 @@ public class ReduceCombineDriver<T> implements Driver<ReduceFunction<T>, T> {
 				if (objectReuseEnabled) {
 					T value = serializer.createInstance();
 					while (running && (value = in.next(value)) != null) {
-						numRecordsIn.inc();
-						try {
 							reduceFacade.updateTableEntryWithReduce(value);
-						} catch (EOFException ex) {
-							// the table has run out of memory
-							reduceFacade.emitAndReset();
-							// try again
-							reduceFacade.updateTableEntryWithReduce(value);
-						}
 					}
 				} else {
 					T value;
 					while (running && (value = in.next()) != null) {
-						numRecordsIn.inc();
-						try {
 							reduceFacade.updateTableEntryWithReduce(value);
-						} catch (EOFException ex) {
-							// the table has run out of memory
-							reduceFacade.emitAndReset();
-							// try again
-							reduceFacade.updateTableEntryWithReduce(value);
-						}
 					}
 				}
 

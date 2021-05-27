@@ -42,8 +42,6 @@ public class UnionWithTempOperator<T> implements Driver<Function, T> {
 
 	@Override
 	public void run() throws Exception {
-		final Counter numRecordsIn = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsInCounter();
-		final Counter numRecordsOut = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter();
 		
 		final Collector<T> output = new CountingCollector<>(this.taskContext.getOutputCollector(), numRecordsOut);
 		T reuse = this.taskContext.<T>getInputSerializer(STREAMED_INPUT).getSerializer().createInstance();
@@ -51,13 +49,11 @@ public class UnionWithTempOperator<T> implements Driver<Function, T> {
 		
 		final MutableObjectIterator<T> input = this.taskContext.getInput(STREAMED_INPUT);
 		while (this.running && ((record = input.next(reuse)) != null)) {
-			numRecordsIn.inc();
 			output.collect(record);
 		}
 		
 		final MutableObjectIterator<T> cache = this.taskContext.getInput(CACHED_INPUT);
 		while (this.running && ((record = cache.next(reuse)) != null)) {
-			numRecordsIn.inc();
 			output.collect(record);
 		}
 	}

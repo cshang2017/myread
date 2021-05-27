@@ -62,8 +62,6 @@ public class MapDriver<IT, OT> implements Driver<MapFunction<IT, OT>, OT> {
 
 	@Override
 	public void run() throws Exception {
-		final Counter numRecordsIn = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsInCounter();
-		final Counter numRecordsOut = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter();
 		// cache references on the stack
 		final MutableObjectIterator<IT> input = this.taskContext.getInput(0);
 		final MapFunction<IT, OT> function = this.taskContext.getStub();
@@ -73,7 +71,6 @@ public class MapDriver<IT, OT> implements Driver<MapFunction<IT, OT>, OT> {
 			IT record = this.taskContext.<IT>getInputSerializer(0).getSerializer().createInstance();
 	
 			while (this.running && ((record = input.next(record)) != null)) {
-				numRecordsIn.inc();
 				output.collect(function.map(record));
 			}
 		}
@@ -81,7 +78,6 @@ public class MapDriver<IT, OT> implements Driver<MapFunction<IT, OT>, OT> {
 			IT record = null;
 			
 			while (this.running && ((record = input.next()) != null)) {
-				numRecordsIn.inc();
 				output.collect(function.map(record));
 			}
 		}

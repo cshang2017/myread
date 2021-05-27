@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.operators;
 
 import org.apache.flink.api.common.ExecutionConfig;
@@ -57,8 +39,6 @@ import java.util.List;
  */
 public class GroupReduceCombineDriver<IN, OUT> implements Driver<GroupCombineFunction<IN, OUT>, OUT> {
 	
-	private static final Logger LOG = LoggerFactory.getLogger(GroupReduceCombineDriver.class);
-
 	/** Fix length records with a length below this threshold will be in-place sorted, if possible. */
 	private static final int THRESHOLD_FOR_IN_PLACE_SORTING = 32;
 
@@ -115,8 +95,6 @@ public class GroupReduceCombineDriver<IN, OUT> implements Driver<GroupCombineFun
 		if (driverStrategy != DriverStrategy.SORTED_GROUP_COMBINE){
 			throw new Exception("Invalid strategy " + driverStrategy + " for group reduce combiner.");
 		}
-		
-		
 
 		final TypeSerializerFactory<IN> serializerFactory = this.taskContext.getInputSerializer(0);
 		this.serializer = serializerFactory.getSerializer();
@@ -142,17 +120,10 @@ public class GroupReduceCombineDriver<IN, OUT> implements Driver<GroupCombineFun
 
 		ExecutionConfig executionConfig = taskContext.getExecutionConfig();
 		this.objectReuseEnabled = executionConfig.isObjectReuseEnabled();
-
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("GroupReduceCombineDriver object reuse: {}.", (this.objectReuseEnabled ? "ENABLED" : "DISABLED"));
-		}
 	}
 
 	@Override
 	public void run() throws Exception {
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("Combiner starting.");
-		}
 
 		final MutableObjectIterator<IN> in = this.taskContext.getInput(0);
 		final TypeSerializer<IN> serializer = this.serializer;
@@ -223,8 +194,6 @@ public class GroupReduceCombineDriver<IN, OUT> implements Driver<GroupCombineFun
 		if (!this.sorter.write(value)) {
 
 			++oversizedRecordCount;
-			LOG.debug("Cannot write record to fresh sort buffer, record is too large. " +
-					"Oversized record count: {}", oversizedRecordCount);
 
 			// simply forward the record. We need to pass it through the combine function to convert it
 			Iterable<IN> input = Collections.singleton(value);

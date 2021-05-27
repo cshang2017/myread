@@ -1,22 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-
 package org.apache.flink.runtime.operators.chaining;
 
 import org.apache.flink.api.common.functions.Function;
@@ -48,8 +29,6 @@ import java.util.List;
  * Chained version of ReduceCombineDriver.
  */
 public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
-
-	private static final Logger LOG = LoggerFactory.getLogger(ChainedReduceCombineDriver.class);
 
 	/** Fix length records with a length below this threshold will be in-place sorted, if possible. */
 	private static final int THRESHOLD_FOR_IN_PLACE_SORTING = 32;
@@ -136,7 +115,6 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
 
 	@Override
 	public void collect(T record) {
-		try {
 			switch (strategy) {
 				case SORTED_PARTIAL_REDUCE:
 					collectSorted(record);
@@ -145,9 +123,6 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
 					collectHashed(record);
 					break;
 			}
-		} catch (Exception ex) {
-			throw new ExceptionInChainedStubException(taskName, ex);
-		}
 	}
 
 	private void collectSorted(T record) throws Exception {
@@ -167,14 +142,7 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
 	}
 
 	private void collectHashed(T record) throws Exception {
-		try {
 			reduceFacade.updateTableEntryWithReduce(record);
-		} catch (EOFException ex) {
-			// the table has run out of memory
-			reduceFacade.emitAndReset();
-			// try again
-			reduceFacade.updateTableEntryWithReduce(record);
-		}
 	}
 
 	private void sortAndCombine() throws Exception {
@@ -260,7 +228,6 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
 	@Override
 	public void close() {
 		// send the final batch
-		try {
 			switch (strategy) {
 				case SORTED_PARTIAL_REDUCE:
 					sortAndCombine();
@@ -269,9 +236,6 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
 					reduceFacade.emit();
 					break;
 			}
-		} catch (Exception ex2) {
-			throw new ExceptionInChainedStubException(taskName, ex2);
-		}
 
 		outputCollector.close();
 		dispose(false);
@@ -291,20 +255,12 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
 	}
 
 	private void dispose(boolean ignoreException) {
-		try {
 			if (sorter != null) {
 				sorter.dispose();
 			}
 			if (table != null) {
 				table.close();
 			}
-		} catch (Exception e) {
-			// May happen during concurrent modification.
-			if (!ignoreException) {
-				throw e;
-			}
-		} finally {
 			parent.getEnvironment().getMemoryManager().release(memory);
-		}
 	}
 }

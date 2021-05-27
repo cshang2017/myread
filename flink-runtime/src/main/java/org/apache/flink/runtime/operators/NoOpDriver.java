@@ -6,8 +6,6 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.runtime.operators.util.metrics.CountingCollector;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.MutableObjectIterator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A driver that does nothing but forward data from its input to its output.
@@ -52,8 +50,6 @@ public class NoOpDriver<T> implements Driver<AbstractRichFunction, T> {
 	@Override
 	public void run() throws Exception {
 		// cache references on the stack
-		final Counter numRecordsIn = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsInCounter();
-		final Counter numRecordsOut = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter();
 		final MutableObjectIterator<T> input = this.taskContext.getInput(0);
 		final Collector<T> output = new CountingCollector<>(this.taskContext.getOutputCollector(), numRecordsOut);
 
@@ -61,13 +57,11 @@ public class NoOpDriver<T> implements Driver<AbstractRichFunction, T> {
 			T record = this.taskContext.<T>getInputSerializer(0).getSerializer().createInstance();
 
 			while (this.running && ((record = input.next(record)) != null)) {
-				numRecordsIn.inc();
 				output.collect(record);
 			}
 		} else {
 			T record;
 			while (this.running && ((record = input.next()) != null)) {
-				numRecordsIn.inc();
 				output.collect(record);
 			}
 

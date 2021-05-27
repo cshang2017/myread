@@ -73,13 +73,8 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 
 	@Override
 	public void invoke() throws Exception {
-		// initialize OutputFormat
 		initOutputFormat();
-
-		// initialize input readers
-			initInputReaders();
-
-		// Invoke
+		initInputReaders();
 
 		RuntimeContext ctx = createRuntimeContext();
 
@@ -116,9 +111,6 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 					// get type comparator
 					TypeComparatorFactory<IT> compFact = this.config.getInputComparator(0,
 							getUserCodeClassLoader());
-					if (compFact == null) {
-						throw new Exception("Missing comparator factory for local strategy on input " + 0);
-					}
 					
 					// initialize sorter
 					UnilateralSortMerger<IT> sorter = new UnilateralSortMerger<IT>(
@@ -180,14 +172,7 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 			if (this.format != null) {
 				// close format, if it has not been closed, yet.
 				// This should only be the case if we had a previous error, or were canceled.
-				try {
 					this.format.close();
-				}
-				catch (Throwable t) {
-					if (LOG.isWarnEnabled()) {
-						LOG.warn(getLogString("Error closing the output format"), t);
-					}
-				}
 			}
 			// close local strategy if necessary
 			if (localStrategy != null) {
@@ -230,7 +215,6 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 
 		final Pair<OperatorID, OutputFormat<IT>> operatorIDAndOutputFormat;
 		InputOutputFormatContainer formatContainer = new InputOutputFormatContainer(config, userCodeClassLoader);
-		try {
 			operatorIDAndOutputFormat = formatContainer.getUniqueOutputFormat();
 			this.format = operatorIDAndOutputFormat.getValue();
 
@@ -239,25 +223,13 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 				throw new RuntimeException("The class '" + this.format.getClass().getName() + "' is not a subclass of '" + 
 						OutputFormat.class.getName() + "' as is required.");
 			}
-		}
-		catch (ClassCastException ccex) {
-			throw new RuntimeException("The stub class is not a proper subclass of " + OutputFormat.class.getName(), ccex);
-		}
 
 		Thread thread = Thread.currentThread();
 		ClassLoader original = thread.getContextClassLoader();
 		// configure the stub. catch exceptions here extra, to report them as originating from the user code 
-		try {
 			thread.setContextClassLoader(userCodeClassLoader);
 			this.format.configure(formatContainer.getParameters(operatorIDAndOutputFormat.getKey()));
-		}
-		catch (Throwable t) {
-			throw new RuntimeException("The user defined 'configure()' method in the Output Format caused an error: " 
-				+ t.getMessage(), t);
-		}
-		finally {
 			thread.setContextClassLoader(original);
-		}
 	}
 
 	/**

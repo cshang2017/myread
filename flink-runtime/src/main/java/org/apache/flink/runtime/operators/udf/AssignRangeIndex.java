@@ -24,12 +24,9 @@ public class AssignRangeIndex<IN> extends RichMapPartitionFunction<IN, Tuple2<In
 	}
 
 	@Override
-	public void mapPartition(Iterable<IN> values, Collector<Tuple2<Integer, IN>> out) throws Exception {
+	public void mapPartition(Iterable<IN> values, Collector<Tuple2<Integer, IN>> out) {
 
 		List<Object> broadcastVariable = getRuntimeContext().getBroadcastVariable("RangeBoundaries");
-		if (broadcastVariable == null || broadcastVariable.size() != 1) {
-			throw new RuntimeException("AssignRangePartition require a single RangeBoundaries as broadcast input.");
-		}
 		Object[][] boundaryObjects = (Object[][]) broadcastVariable.get(0);
 		RangeBoundaries rangeBoundaries = new CommonRangeBoundaries(typeComparator.createComparator(), boundaryObjects);
 

@@ -1,29 +1,8 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.net;
 
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.leaderretrieval.LeaderRetrievalException;
 import org.apache.flink.runtime.leaderretrieval.LeaderRetrievalListener;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -47,8 +26,6 @@ import java.util.UUID;
  * that is not susceptible to clock changes.
  */
 public class ConnectionUtils {
-
-	private static final Logger LOG = LoggerFactory.getLogger(ConnectionUtils.class);
 
 	private static final long MIN_SLEEP_TIME = 50;
 	private static final long MAX_SLEEP_TIME = 20000;
@@ -102,12 +79,6 @@ public class ConnectionUtils {
 	 */
 	public static InetAddress findConnectingAddress(InetSocketAddress targetAddress,
 							long maxWaitMillis, long startLoggingAfter) throws IOException {
-		if (targetAddress == null) {
-			throw new NullPointerException("targetAddress must not be null");
-		}
-		if (maxWaitMillis <= 0) {
-			throw new IllegalArgumentException("Max wait time must be positive");
-		}
 
 		final long startTimeNanos = System.nanoTime();
 
@@ -124,9 +95,6 @@ public class ConnectionUtils {
 		// loop while there is time left
 		while (elapsedTimeMillis < maxWaitMillis) {
 			boolean logging = elapsedTimeMillis >= startLoggingAfter;
-			if (logging) {
-				LOG.info("Trying to connect to " + targetAddress);
-			}
 
 			// Try each strategy in order
 			for (AddressDetectionState strategy : strategies) {
@@ -142,18 +110,7 @@ public class ConnectionUtils {
 
 			long toWait = Math.min(maxWaitMillis - elapsedTimeMillis, currentSleepTime);
 			if (toWait > 0) {
-				if (logging) {
-					LOG.info("Could not connect. Waiting for {} msecs before next attempt", toWait);
-				} else {
-					LOG.debug("Could not connect. Waiting for {} msecs before next attempt", toWait);
-				}
-
-				try {
 					Thread.sleep(toWait);
-				}
-				catch (InterruptedException e) {
-					throw new IOException("Connection attempts have been interrupted.");
-				}
 			}
 
 			// increase the exponential backoff timer
@@ -161,13 +118,11 @@ public class ConnectionUtils {
 		}
 
 		// our attempts timed out. use the heuristic fallback
-		LOG.warn("Could not connect to {}. Selecting a local address using heuristics.", targetAddress);
 		InetAddress heuristic = findAddressUsingStrategy(AddressDetectionState.HEURISTIC, targetAddress, true);
 		if (heuristic != null) {
 			return heuristic;
 		}
 		else {
-			LOG.warn("Could not find any IPv4 address that is not loopback or link-local. Using localhost address.");
 			return InetAddress.getLocalHost();
 		}
 	}
@@ -193,8 +148,6 @@ public class ConnectionUtils {
 		}
 		else if (tryToConnect(localhostName, targetAddress, AddressDetectionState.SLOW_CONNECT.getTimeout(), logging)) {
 			// success, we were able to use local host to connect
-			LOG.debug("Preferring {} (InetAddress.getLocalHost()) for local bind point over previous candidate {}",
-					localhostName, preliminaryResult);
 			return localhostName;
 		}
 		else {
@@ -220,15 +173,9 @@ public class ConnectionUtils {
 		// try LOCAL_HOST strategy independent of the network interfaces
 		if (strategy == AddressDetectionState.LOCAL_HOST) {
 			InetAddress localhostName;
-			try {
 				localhostName = InetAddress.getLocalHost();
-			} catch (UnknownHostException uhe) {
-				LOG.warn("Could not resolve local hostname to an IP address: {}", uhe.getMessage());
-				return null;
-			}
 
 			if (tryToConnect(localhostName, targetAddress, strategy.getTimeout(), logging)) {
-				LOG.debug("Using InetAddress.getLocalHost() immediately for the connecting address");
 				// Here, we are not calling tryLocalHostBeforeReturning() because it is the LOCAL_HOST strategy
 				return localhostName;
 			} else {
@@ -256,9 +203,6 @@ public class ConnectionUtils {
 				switch (strategy) {
 					case ADDRESS:
 						if (hasCommonPrefix(targetAddressBytes, interfaceAddress.getAddress())) {
-							LOG.debug("Target address {} and local address {} share prefix - trying to connect.",
-										targetAddress, interfaceAddress);
-
 							if (tryToConnect(interfaceAddress, targetAddress, strategy.getTimeout(), logging)) {
 								return tryLocalHostBeforeReturning(interfaceAddress, targetAddress, logging);
 							}
@@ -267,8 +211,6 @@ public class ConnectionUtils {
 
 					case FAST_CONNECT:
 					case SLOW_CONNECT:
-						LOG.debug("Trying to connect to {} from local address {} with timeout {}",
-								targetAddress, interfaceAddress, strategy.getTimeout());
 
 						if (tryToConnect(interfaceAddress, targetAddress, strategy.getTimeout(), logging)) {
 							return tryLocalHostBeforeReturning(interfaceAddress, targetAddress, logging);
@@ -276,9 +218,6 @@ public class ConnectionUtils {
 						break;
 
 					case HEURISTIC:
-						if (LOG.isDebugEnabled()) {
-							LOG.debug("Choosing InetAddress.getLocalHost() address as a heuristic.");
-						}
 
 						return InetAddress.getLocalHost();
 
@@ -312,27 +251,13 @@ public class ConnectionUtils {
 	 */
 	private static boolean tryToConnect(InetAddress fromAddress, SocketAddress toSocket,
 										int timeout, boolean logFailed) throws IOException {
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("Trying to connect to (" + toSocket + ") from local address " + fromAddress
-					+ " with timeout " + timeout);
-		}
-		try (Socket socket = new Socket()) {
+		Socket socket = new Socket();
 			// port 0 = let the OS choose the port
 			SocketAddress bindP = new InetSocketAddress(fromAddress, 0);
 			// machine
 			socket.bind(bindP);
 			socket.connect(toSocket, timeout);
 			return true;
-		}
-		catch (Exception ex) {
-			String message = "Failed to connect from address '" + fromAddress + "': " + ex.getMessage();
-			if (LOG.isDebugEnabled()) {
-				LOG.debug(message, ex);
-			} else if (logFailed) {
-				LOG.info(message);
-			}
-			return false;
-		}
 	}
 
 	/**
@@ -368,7 +293,6 @@ public class ConnectionUtils {
 			long elapsedTimeMillis = 0;
 			InetSocketAddress targetAddress = null;
 
-			try {
 				while (elapsedTimeMillis < timeout.toMillis()) {
 
 					long maxTimeout = timeout.toMillis() - elapsedTimeMillis;
@@ -455,20 +379,15 @@ public class ConnectionUtils {
 				InetAddress heuristic = null;
 
 				if (targetAddress != null) {
-					LOG.warn("Could not connect to {}. Selecting a local address using heuristics.", targetAddress);
 					heuristic = findAddressUsingStrategy(AddressDetectionState.HEURISTIC, targetAddress, true);
 				}
 
 				if (heuristic != null) {
 					return heuristic;
 				} else {
-					LOG.warn("Could not find any IPv4 address that is not loopback or link-local. Using localhost address.");
 					return InetAddress.getLocalHost();
 				}
-			} catch (Exception e) {
-				throw new LeaderRetrievalException("Could not retrieve the connecting address to the " +
-						"current leader with the akka URL " + akkaURL + ".", e);
-			}
+			
 		}
 
 		@Override

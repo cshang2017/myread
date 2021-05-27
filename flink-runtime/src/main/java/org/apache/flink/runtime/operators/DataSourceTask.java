@@ -75,14 +75,8 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 
 	@Override
 	public void invoke()   {
-		// --------------------------------------------------------------------
-		// Initialize
-		// --------------------------------------------------------------------
 		initInputFormat();
-
-			initOutputs(getUserCodeClassLoader());
-
-		// Invoke
+		initOutputs(getUserCodeClassLoader());
 
 		RuntimeContext ctx = createRuntimeContext();
 

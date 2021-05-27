@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.operators;
 
 import org.apache.flink.api.common.ExecutionConfig;
@@ -42,8 +24,6 @@ import org.slf4j.LoggerFactory;
  * @see FlatJoinFunction
  */
 public abstract class AbstractOuterJoinDriver<IT1, IT2, OT> implements Driver<FlatJoinFunction<IT1, IT2, OT>, OT> {
-	
-	protected static final Logger LOG = LoggerFactory.getLogger(AbstractOuterJoinDriver.class);
 	
 	protected TaskContext<FlatJoinFunction<IT1, IT2, OT>, OT> taskContext;
 	
@@ -100,16 +80,8 @@ public abstract class AbstractOuterJoinDriver<IT1, IT2, OT> implements Driver<Fl
 		
 		final TypePairComparatorFactory<IT1, IT2> pairComparatorFactory = config.getPairComparatorFactory(this.taskContext.getUserCodeClassLoader());
 		
-		if (pairComparatorFactory == null) {
-			throw new Exception("Missing pair comparator factory for outer join driver");
-		}
-		
 		ExecutionConfig executionConfig = taskContext.getExecutionConfig();
 		boolean objectReuseEnabled = executionConfig.isObjectReuseEnabled();
-		
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("Outer Join Driver object reuse: " + (objectReuseEnabled ? "ENABLED" : "DISABLED") + ".");
-		}
 		
 		// create and return outer join iterator according to provided local strategy.
 		if (objectReuseEnabled) {
@@ -143,15 +115,11 @@ public abstract class AbstractOuterJoinDriver<IT1, IT2, OT> implements Driver<Fl
 		}
 		
 		this.outerJoinIterator.open();
-		
-		if (LOG.isDebugEnabled()) {
-			LOG.debug(this.taskContext.formatLogString("outer join task iterator ready."));
-		}
+	
 	}
 	
 	@Override
 	public void run() throws Exception {
-		final Counter numRecordsOut = this.taskContext.getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter();
 		
 		final FlatJoinFunction<IT1, IT2, OT> joinStub = this.taskContext.getStub();
 		final Collector<OT> collector = new CountingCollector<>(this.taskContext.getOutputCollector(), numRecordsOut);

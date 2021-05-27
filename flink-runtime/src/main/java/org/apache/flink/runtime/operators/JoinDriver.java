@@ -22,8 +22,6 @@ import org.apache.flink.runtime.operators.util.metrics.CountingMutableObjectIter
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.MutableObjectIterator;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The join driver implements the logic of a join operator at runtime. It instantiates either
@@ -32,8 +30,6 @@ import org.slf4j.LoggerFactory;
  * @see org.apache.flink.api.common.functions.FlatJoinFunction
  */
 public class JoinDriver<IT1, IT2, OT> implements Driver<FlatJoinFunction<IT1, IT2, OT>, OT> {
-	
-	protected static final Logger LOG = LoggerFactory.getLogger(JoinDriver.class);
 	
 	protected TaskContext<FlatJoinFunction<IT1, IT2, OT>, OT> taskContext;
 	
@@ -56,8 +52,8 @@ public class JoinDriver<IT1, IT2, OT> implements Driver<FlatJoinFunction<IT1, IT
 
 	@Override
 	public Class<FlatJoinFunction<IT1, IT2, OT>> getStubType() {
-		@SuppressWarnings("unchecked")
-		final Class<FlatJoinFunction<IT1, IT2, OT>> clazz = (Class<FlatJoinFunction<IT1, IT2, OT>>) (Class<?>) FlatJoinFunction.class;
+		final Class<FlatJoinFunction<IT1, IT2, OT>> clazz 
+			= (Class<FlatJoinFunction<IT1, IT2, OT>>) (Class<?>) FlatJoinFunction.class;
 		return clazz;
 	}
 	
@@ -94,17 +90,10 @@ public class JoinDriver<IT1, IT2, OT> implements Driver<FlatJoinFunction<IT1, IT
 		
 		final TypePairComparatorFactory<IT1, IT2> pairComparatorFactory = config.getPairComparatorFactory(
 				this.taskContext.getUserCodeClassLoader());
-		if (pairComparatorFactory == null) {
-			throw new Exception("Missing pair comparator factory for join driver");
-		}
 
 		ExecutionConfig executionConfig = taskContext.getExecutionConfig();
 		boolean objectReuseEnabled = executionConfig.isObjectReuseEnabled();
 
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("Join Driver object reuse: " + (objectReuseEnabled ? "ENABLED" : "DISABLED") + ".");
-		}
-		
 		boolean hashJoinUseBitMaps = taskContext.getTaskManagerInfo().getConfiguration()
 			.getBoolean(AlgorithmOptions.HASH_JOIN_BLOOM_FILTERS);
 
@@ -187,10 +176,6 @@ public class JoinDriver<IT1, IT2, OT> implements Driver<FlatJoinFunction<IT1, IT
 		// open the iterator - this triggers the sorting or hash-table building
 		// and blocks until the iterator is ready
 		this.joinIterator.open();
-		
-		if (LOG.isDebugEnabled()) {
-			LOG.debug(this.taskContext.formatLogString("join task iterator ready."));
-		}
 	}
 
 	@Override

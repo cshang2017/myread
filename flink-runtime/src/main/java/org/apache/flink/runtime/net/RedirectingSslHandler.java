@@ -1,21 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.flink.runtime.net;
 
 import org.apache.flink.runtime.io.network.netty.SSLHandlerFactory;
@@ -34,9 +16,6 @@ import org.apache.flink.shaded.netty4.io.netty.handler.codec.http.HttpServerCode
 import org.apache.flink.shaded.netty4.io.netty.handler.ssl.SslHandler;
 import org.apache.flink.shaded.netty4.io.netty.util.ReferenceCountUtil;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.annotation.Nonnull;
 
 import java.net.InetSocketAddress;
@@ -45,7 +24,6 @@ import java.util.concurrent.CompletableFuture;
 
 /** SSL handler which automatically redirects Non-SSL requests to SSL address. */
 public class RedirectingSslHandler extends ByteToMessageDecoder {
-	private static final Logger log = LoggerFactory.getLogger(RedirectingSslHandler.class);
 
 	private static final String SSL_HANDLER_NAME = "ssl";
 	private static final String HTTP_CODEC_HANDLER_NAME = "http-codec";
@@ -79,12 +57,7 @@ public class RedirectingSslHandler extends ByteToMessageDecoder {
 
 	private void handleSsl(ChannelHandlerContext context) {
 		SslHandler sslHandler = sslHandlerFactory.createNettySSLHandler(context.alloc());
-		try {
 			context.pipeline().replace(this, SSL_HANDLER_NAME, sslHandler);
-		} catch (Throwable t) {
-			ReferenceCountUtil.safeRelease(sslHandler.engine());
-			throw t;
-		}
 	}
 
 	private class NonSslHandler extends ChannelInboundHandlerAdapter {
@@ -93,7 +66,6 @@ public class RedirectingSslHandler extends ByteToMessageDecoder {
 			HttpRequest request = msg instanceof HttpRequest ? (HttpRequest) msg : null;
 			String path = request == null ? "" : request.uri();
 			String redirectAddress = getRedirectAddress(ctx);
-			log.trace("Received non-SSL request, redirecting to {}{}", redirectAddress, path);
 			HttpResponse response = HandlerRedirectUtils.getRedirectResponse(
 				redirectAddress, path, HttpResponseStatus.MOVED_PERMANENTLY);
 			if (request != null) {
